@@ -5254,6 +5254,12 @@ S:	Maintained
 F:	Documentation/admin-guide/perf/cxl.rst
 F:	drivers/perf/cxl_pmu.c
 
+COMPUTE EXPRESS LINK VIRTUALIZATION (CXLV)
+M:	Dongsheng Yang <dongsheng.yang@easystack.cn>
+L:	linux-cxl@vger.kernel.org
+S:	Maintained
+F:	drivers/cxl/cxl_virt/
+
 CONEXANT ACCESSRUNNER USB DRIVER
 L:	accessrunner-general@lists.sourceforge.net
 S:	Orphan
