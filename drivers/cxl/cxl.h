@@ -839,6 +839,11 @@ static inline struct cxl_dax_region *to_cxl_dax_region(struct device *dev)
 }
 #endif
 
+void remove_cxl_resources(void *data);
+int add_cxl_resources(struct resource *cxl_res);
+int pair_cxl_resource(struct device *dev, void *data);
+int add_root_nvdimm_bridge(struct device *match, void *data);
+
 /*
  * Unit test builds overrides this to __weak, find the 'strong' version
  * of these symbols in tools/testing/cxl/.

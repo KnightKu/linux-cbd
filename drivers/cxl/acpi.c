@@ -447,7 +447,7 @@ static int add_host_bridge_dport(struct device *match, void *arg)
  * A host bridge is a dport to a CFMWS decode and it is a uport to the
  * dport (PCIe Root Ports) in the host bridge.
  */
-static int add_host_bridge_uport(struct device *match, void *arg)
+int add_host_bridge_uport(struct device *match, void *arg)
 {
 	struct cxl_port *root_port = arg;
 	struct device *host = root_port->dev.parent;
@@ -504,152 +504,11 @@ static int add_host_bridge_uport(struct device *match, void *arg)
 	return 0;
 }
 
-static int add_root_nvdimm_bridge(struct device *match, void *data)
-{
-	struct cxl_decoder *cxld;
-	struct cxl_port *root_port = data;
-	struct cxl_nvdimm_bridge *cxl_nvb;
-	struct device *host = root_port->dev.parent;
-
-	if (!is_root_decoder(match))
-		return 0;
-
-	cxld = to_cxl_decoder(match);
-	if (!(cxld->flags & CXL_DECODER_F_PMEM))
-		return 0;
-
-	cxl_nvb = devm_cxl_add_nvdimm_bridge(host, root_port);
-	if (IS_ERR(cxl_nvb)) {
-		dev_dbg(host, "failed to register pmem\n");
-		return PTR_ERR(cxl_nvb);
-	}
-	dev_dbg(host, "%s: add: %s\n", dev_name(&root_port->dev),
-		dev_name(&cxl_nvb->dev));
-	return 1;
-}
-
 static struct lock_class_key cxl_root_key;
 
 static void cxl_acpi_lock_reset_class(void *dev)
 {
 	device_lock_reset_class(dev);
-}
-
-static void del_cxl_resource(struct resource *res)
-{
-	kfree(res->name);
-	kfree(res);
-}
-
-static void cxl_set_public_resource(struct resource *priv, struct resource *pub)
-{
-	priv->desc = (unsigned long) pub;
-}
-
-static struct resource *cxl_get_public_resource(struct resource *priv)
-{
-	return (struct resource *) priv->desc;
-}
-
-static void remove_cxl_resources(void *data)
-{
-	struct resource *res, *next, *cxl = data;
-
-	for (res = cxl->child; res; res = next) {
-		struct resource *victim = cxl_get_public_resource(res);
-
-		next = res->sibling;
-		remove_resource(res);
-
-		if (victim) {
-			remove_resource(victim);
-			kfree(victim);
-		}
-
-		del_cxl_resource(res);
-	}
-}
-
-/**
- * add_cxl_resources() - reflect CXL fixed memory windows in iomem_resource
- * @cxl_res: A standalone resource tree where each CXL window is a sibling
- *
- * Walk each CXL window in @cxl_res and add it to iomem_resource potentially
- * expanding its boundaries to ensure that any conflicting resources become
- * children. If a window is expanded it may then conflict with a another window
- * entry and require the window to be truncated or trimmed. Consider this
- * situation:
- *
- * |-- "CXL Window 0" --||----- "CXL Window 1" -----|
- * |--------------- "System RAM" -------------|
- *
- * ...where platform firmware has established as System RAM resource across 2
- * windows, but has left some portion of window 1 for dynamic CXL region
- * provisioning. In this case "Window 0" will span the entirety of the "System
- * RAM" span, and "CXL Window 1" is truncated to the remaining tail past the end
- * of that "System RAM" resource.
- */
-static int add_cxl_resources(struct resource *cxl_res)
-{
-	struct resource *res, *new, *next;
-
-	for (res = cxl_res->child; res; res = next) {
-		new = kzalloc(sizeof(*new), GFP_KERNEL);
-		if (!new)
-			return -ENOMEM;
-		new->name = res->name;
-		new->start = res->start;
-		new->end = res->end;
-		new->flags = IORESOURCE_MEM;
-		new->desc = IORES_DESC_CXL;
-
-		/*
-		 * Record the public resource in the private cxl_res tree for
-		 * later removal.
-		 */
-		cxl_set_public_resource(res, new);
-
-		insert_resource_expand_to_fit(&iomem_resource, new);
-
-		next = res->sibling;
-		while (next && resource_overlaps(new, next)) {
-			if (resource_contains(new, next)) {
-				struct resource *_next = next->sibling;
-
-				remove_resource(next);
-				del_cxl_resource(next);
-				next = _next;
-			} else
-				next->start = new->end + 1;
-		}
-	}
-	return 0;
-}
-
-static int pair_cxl_resource(struct device *dev, void *data)
-{
-	struct resource *cxl_res = data;
-	struct resource *p;
-
-	if (!is_root_decoder(dev))
-		return 0;
-
-	for (p = cxl_res->child; p; p = p->sibling) {
-		struct cxl_root_decoder *cxlrd = to_cxl_root_decoder(dev);
-		struct cxl_decoder *cxld = &cxlrd->cxlsd.cxld;
-		struct resource res = {
-			.start = cxld->hpa_range.start,
-			.end = cxld->hpa_range.end,
-			.flags = IORESOURCE_MEM,
-		};
-
-		if (resource_contains(p, &res)) {
-			cxlrd->res = cxl_get_public_resource(p);
-			break;
-		}
-	}
-
-	return 0;
 }
 
 static int cxl_acpi_probe(struct platform_device *pdev)
