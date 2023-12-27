@@ -1187,12 +1187,6 @@ __devm_cxl_add_dport(struct cxl_port *port, struct device *dport_dev,
 	else
 		host = &port->dev;
 
-	if (!host->driver) {
-		dev_WARN_ONCE(&port->dev, 1, "dport:%s bad devm context\n",
-			      dev_name(dport_dev));
-		return ERR_PTR(-ENXIO);
-	}
-
 	if (snprintf(link_name, CXL_TARGET_STRLEN, "dport%d", port_id) >=
 	    CXL_TARGET_STRLEN)
 		return ERR_PTR(-EINVAL);
