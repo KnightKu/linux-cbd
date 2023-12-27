@@ -1508,6 +1508,86 @@ static void reap_dports(struct cxl_port *port)
 	}
 }
 
+/*
+ * Disable an endpoint decoder to prevent any more region attach.
+ */
+static int disable_decoder(struct device *device, void *data)
+{
+	struct cxl_endpoint_decoder *cxled;
+
+	if (!is_endpoint_decoder(device))
+		return 0;
+
+	cxled = to_cxl_endpoint_decoder(device);
+	cxled->mode = CXL_DECODER_DEAD;
+
+	return 0;
+}
+
+/*
+ * Disable a port, if it is an endpoint port, it will disable
+ * the related endpoint decoder, otherwise, disable all child ports.
+ */
+static int disable_port(struct device *device, void *data)
+{
+	struct cxl_port *port;
+	int ret;
+
+	if (!is_cxl_port(device))
+		return 0;
+
+	port = to_cxl_port(device);
+	if (is_cxl_endpoint(port)) {
+		ret = device_for_each_child(&port->dev, NULL, disable_decoder);
+	} else {
+		ret = device_for_each_child(&port->dev, NULL, disable_port);
+	}
+
+	return ret;
+}
+
+/*
+ * If there is any region attached to this port or child port, return -EBUSY.
+ */
+static int port_busy(struct device *device, void *data)
+{
+	struct cxl_port *port;
+
+	if (!is_cxl_port(device))
+		return 0;
+
+	port = to_cxl_port(device);
+	if (!xa_empty(&port->regions)) {
+		return -EBUSY;
+	}
+
+	return device_for_each_child(&port->dev, NULL, port_busy);
+}
+
+/*
+ * Disable any child endpoint decoder to prevent region attach,
+ * then we can delete this port safely.
+ *
+ * Returns -EBUSY if there is still region attached to this port
+ * or child port.
+ */
+int cxl_disable_port(struct cxl_port *port)
+{
+	int ret;
+
+	down_write(&cxl_region_rwsem);
+	if (port_busy(&port->dev, NULL)) {
+		ret = -EBUSY;
+		goto unlock;
+	}
+
+	ret = disable_port(&port->dev, NULL);
+unlock:
+	up_write(&cxl_region_rwsem);
+	return ret;
+}
+EXPORT_SYMBOL_NS_GPL(cxl_disable_port, CXL);
+
 struct detach_ctx {
 	struct cxl_memdev *cxlmd;
 	int depth;
