@@ -154,4 +154,15 @@ config CXL_PMU
 	  monitoring units and provide standard perf based interfaces.
 
 	  If unsure say 'm'.
+
+config CXL_VIRT
+	tristate "CXL Vritualization"
+	depends on CXL_MEM && CXL_PMEM
+	help
+	  Enable virtualization of cxl device. It can create cxl devices
+	  by reserved memory. That would be helpful to get a fast cxl
+	  devices for performance tests.
+
+	  If unsure, or if this kernel is meant for production environments,
+	  say N.
 endif
