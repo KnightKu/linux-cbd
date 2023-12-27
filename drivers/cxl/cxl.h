@@ -716,6 +716,7 @@ struct cxl_dport *devm_cxl_add_dport(struct cxl_port *port,
 struct cxl_dport *devm_cxl_add_rch_dport(struct cxl_port *port,
 					 struct device *dport_dev, int port_id,
 					 resource_size_t rcrb);
+int cxl_disable_port(struct cxl_port *port);
 
 #ifdef CONFIG_PCIEAER_CXL
 void cxl_setup_parent_dport(struct device *host, struct cxl_dport *dport);
