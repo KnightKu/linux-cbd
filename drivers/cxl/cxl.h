@@ -480,6 +480,7 @@ enum cxl_config_state {
  * @res: allocated iomem capacity for this region
  * @targets: active ordered targets in current decoder configuration
  * @nr_targets: number of targets
+ * @for_cbd: to be used as cbd region
  *
  * State transitions are protected by the cxl_region_rwsem
  */
@@ -491,6 +492,7 @@ struct cxl_region_params {
 	struct resource *res;
 	struct cxl_endpoint_decoder *targets[CXL_DECODER_MAX_INTERLEAVE];
 	int nr_targets;
+	u32 for_cbd:1;
 };
 
 /*
@@ -518,6 +520,7 @@ struct cxl_region_params {
  * @cxlr_pmem: (for pmem regions) cached copy of the nvdimm bridge
  * @flags: Region state flags
  * @params: active + config params for the region
+ * @cbd_region_id: cbd region id if region is used for cbd
  */
 struct cxl_region {
 	struct device dev;
@@ -528,6 +531,7 @@ struct cxl_region {
 	struct cxl_pmem_region *cxlr_pmem;
 	unsigned long flags;
 	struct cxl_region_params params;
+	int cbd_region_id;
 };
 
 struct cxl_nvdimm_bridge {

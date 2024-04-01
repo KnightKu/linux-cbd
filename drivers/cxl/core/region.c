@@ -8,6 +8,7 @@
 #include <linux/uuid.h>
 #include <linux/sort.h>
 #include <linux/idr.h>
+#include <linux/cbd.h>
 #include <cxlmem.h>
 #include <cxl.h>
 #include "core.h"
@@ -645,6 +646,76 @@ static ssize_t size_show(struct device *dev, struct device_attribute *attr,
 }
 static DEVICE_ATTR_RW(size);
 
+static ssize_t cbd_store(struct device *dev, struct device_attribute *attr,
+			 const char *buf, size_t len)
+{
+	struct cxl_region *cxlr = to_cxl_region(dev);
+	struct cxl_region_params *p = &cxlr->params;
+	u8 val;
+	int rc;
+
+	rc = kstrtou8(buf, 0, &val);
+	if (rc)
+		return rc;
+
+	if (val != 0 && val != 1) {
+		return -EINVAL;
+	}
+
+	rc = down_write_killable(&cxl_region_rwsem);
+	if (rc)
+		return rc;
+
+	if (cxlr->cbd_region_id != -1 && val == 0) {
+		rc = -EBUSY;
+		goto unlock;
+	}
+
+	p->for_cbd = val;
+
+unlock:
+	up_write(&cxl_region_rwsem);
+
+	if (rc)
+		return rc;
+
+	return len;
+}
+
+static ssize_t cbd_show(struct device *dev, struct device_attribute *attr,
+			char *buf)
+{
+	struct cxl_region *cxlr = to_cxl_region(dev);
+	struct cxl_region_params *p = &cxlr->params;
+	ssize_t rc;
+
+	rc = down_read_interruptible(&cxl_region_rwsem);
+	if (rc)
+		return rc;
+	rc = sysfs_emit(buf, "%u\n", p->for_cbd);
+	up_read(&cxl_region_rwsem);
+
+	return rc;
+}
+static DEVICE_ATTR_RW(cbd);
+
+static ssize_t cbd_region_id_show(struct device *dev, struct device_attribute *attr,
+				  char *buf)
+{
+	struct cxl_region *cxlr = to_cxl_region(dev);
+	ssize_t rc;
+
+	rc = down_read_interruptible(&cxl_region_rwsem);
+	if (rc)
+		return rc;
+	pr_err("cbd_region_id: %d\n", cxlr->cbd_region_id);
+	rc = sysfs_emit(buf, "%d\n", cxlr->cbd_region_id);
+	up_read(&cxl_region_rwsem);
+
+	return rc;
+}
+static DEVICE_ATTR_RO(cbd_region_id);
+
 static struct attribute *cxl_region_attrs[] = {
 	&dev_attr_uuid.attr,
 	&dev_attr_commit.attr,
@@ -653,6 +724,8 @@ static struct attribute *cxl_region_attrs[] = {
 	&dev_attr_resource.attr,
 	&dev_attr_size.attr,
 	&dev_attr_mode.attr,
+	&dev_attr_cbd.attr,
+	&dev_attr_cbd_region_id.attr,
 	NULL,
 };
 
@@ -2129,6 +2202,7 @@ static struct cxl_region *cxl_region_alloc(struct cxl_root_decoder *cxlrd, int i
 	dev->bus = &cxl_bus_type;
 	dev->type = &cxl_region_type;
 	cxlr->id = id;
+	cxlr->cbd_region_id = -1;
 
 	return cxlr;
 }
@@ -2964,6 +3038,21 @@ out:
 	if (rc)
 		return rc;
 
+	if (p->for_cbd) {
+		struct cbd_region_param param = { 0 };
+
+		param.start = p->res->start;
+		param.size = p->res->end - p->res->start + 1;
+
+		if (cxlr->mode == CXL_DECODER_PMEM) {
+			param.flags |= CXL_BLKDEV_REGION_PARAM_F_PMEM;
+		}
+
+		cxlr->cbd_region_id = cbd_region_create(&param);
+
+		return 0;
+	}
+
 	switch (cxlr->mode) {
 	case CXL_DECODER_PMEM:
 		return devm_cxl_add_pmem_region(cxlr);
@@ -2985,9 +3074,26 @@ out:
 	}
 }
 
+void cxl_region_remove(struct device *dev)
+{
+	struct cxl_region *cxlr = to_cxl_region(dev);
+	int ret;
+
+	pr_err("region remove\n");
+	if (cxlr->cbd_region_id != -1) {
+		ret = cbd_region_destroy(cxlr->cbd_region_id);
+		if (ret) {
+			dev_dbg(&cxlr->dev, "failed to destroy cbd region: %d\n", ret);
+		} else {
+			cxlr->cbd_region_id = -1;
+		}
+	}
+}
+
 static struct cxl_driver cxl_region_driver = {
 	.name = "cxl_region",
 	.probe = cxl_region_probe,
+	.remove = cxl_region_remove,
 	.id = CXL_DEVICE_REGION,
 };
 
