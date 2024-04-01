@@ -1,0 +1,5 @@
+config BLK_DEV_CBD
+	tristate "CXL Block Device"
+	depends on CXL_MEM && CXL_PMEM
+	help
+	  If unsure say 'm'.
