@@ -173,7 +173,7 @@ static int cxlv_handle(void *data)
 		process_decoder(data);
 
 		/* sleep 1ms after each loop */
-		fsleep(CXLV_HANDLER_SLEEP_US);
+		schedule_timeout_interruptible(usecs_to_jiffies(10000));
 	}
 
 	return 0;
