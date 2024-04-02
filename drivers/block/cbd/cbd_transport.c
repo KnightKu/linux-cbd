@@ -335,29 +335,26 @@ struct cbd_transport_param {
 	u32	flags;
 };
 
-static struct cbd_transport *cbd_transport_alloc(struct cbd_transport_param *cbd_rp)
+int cbd_transport_init(struct cbd_transport *cbdt, struct dax_device *dax_dev)
 {
-	struct cbd_transport *cbdt;
-	struct cbd_transport_info *transport_info;
-	struct device *dev;
+	int ret;
 	int i;
-
-	cbdt = kzalloc(sizeof(struct cbd_transport), GFP_KERNEL);
-	if (!cbdt) {
-		return NULL;
-	}
+	struct device *dev;
+	long access_size;
+	void *kaddr;
+	u64 nr_pages = 512*1024*1024 >> PAGE_SHIFT;
 
 	cbdt->id = ida_simple_get(&cbd_transport_id_ida, 0, 16,
 					 GFP_KERNEL);
 
 	cbd_transports[cbdt->id] = cbdt;
-	cbdt->start = cbd_rp->start;
-	cbdt->size = cbd_rp->size;
 
-	transport_info = memremap(cbdt->start, cbdt->size, MEMREMAP_WB);
-	if (is_vmalloc_addr(transport_info))
-		pr_err("is vmalloc_addr");
-	cbdt->transport_info = transport_info;
+	access_size = dax_direct_access(dax_dev, 0, nr_pages, DAX_ACCESS, &kaddr, NULL);
+	if (access_size != 512*1024*1024) {
+		pr_err("dax size error\n");
+	}
+
+	cbdt->transport_info = (struct cbd_transport_info *)kaddr;
 	mutex_init(&cbdt->lock);
 	INIT_LIST_HEAD(&cbdt->backends);
 	INIT_LIST_HEAD(&cbdt->devices);
@@ -374,32 +371,7 @@ static struct cbd_transport *cbd_transport_alloc(struct cbd_transport_param *cbd
 	device_add(&cbdt->device);
 
 	return cbdt;
-
-cbdt_free:
-	kfree(cbdt);
-	return NULL;
 }
-
-int cbd_transport_create(struct cbd_transport_param *cbd_rp)
-{
-	struct cbd_transport *cbdt;
-	int ret;
-	int i;
-
-	pr_err("alloc transport");
-	cbdt = cbd_transport_alloc(cbd_rp);
-	if (!cbdt) {
-		return -ENOMEM;
-	}
-
-	pr_err("id: %d", cbdt->id);
-	return cbdt->id;
-
-transport_free:
-	kfree(cbdt);
-	return ret;
-}
-EXPORT_SYMBOL(cbd_transport_create);
 
 int cbd_transport_destroy(int rid)
 {
@@ -414,14 +386,18 @@ int cbd_transport_destroy(int rid)
 
 	ida_simple_remove(&cbd_transport_id_ida, cbdt->id);
 
-	memunmap(cbdt->transport_info);
-
 	device_unregister(&cbdt->device);
+
+	if (cbdt->bdev_handle)
+		bdev_release(cbdt->bdev_handle);
+	if (cbdt->dax_dev)
+		fs_put_dax(cbdt->dax_dev, cbdt);
+
+	kfree(cbdt);
 	kfree(cbdt);
 
 	return 0;
 }
-EXPORT_SYMBOL(cbd_transport_destroy);
 
 int cbd_transport_format(struct cbd_transport *cbdt, struct cbd_adm_options *opts)
 {
@@ -595,13 +571,10 @@ int cbdt_register(struct cbdt_register_options *opts)
 		return -ENODEV;
 	}
 
-	pr_err("start_off: %llu\n", start_off);
+	cbdt->bdev_handle = handlep;
+	cbdt->dax_dev = dax_dev;
 
-	if (handlep)
-		bdev_release(handlep);
-	if (dax_dev)
-		fs_put_dax(dax_dev, cbdt);
+	cbd_transport_init(cbdt, dax_dev);
 
-	kfree(cbdt);
 	return 0;
 }

@@ -422,6 +422,9 @@ struct cbd_transport {
 	struct cbd_backends_device *cbd_backends_dev;
 	struct cbd_blkdevs_device *cbd_blkdevs_dev;
 
+	struct dax_device *dax_dev;
+	struct bdev_handle   *bdev_handle;
+
 	struct cbd_host *host;
 };
 
