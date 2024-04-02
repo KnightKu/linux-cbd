@@ -407,8 +407,6 @@ struct cbd_host {
 
 struct cbd_transport {
 	u16	id;
-	u64	start;
-	u64	size;
 	struct device device;
 	struct mutex lock;
 
@@ -1124,3 +1122,4 @@ struct cbdt_register_options {
 };
 
 int cbdt_register(struct cbdt_register_options *opts);
+int cbdt_unregister(u32 transport_id);

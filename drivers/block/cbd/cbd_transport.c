@@ -193,6 +193,7 @@ out:
 	return ret;
 }
 
+int cbd_transport_stop(struct cbd_transport *cbdt);
 static ssize_t cbd_adm_store(struct device *dev,
 				 struct device_attribute *attr,
 				 const char *ubuf,
@@ -350,8 +351,8 @@ int cbd_transport_init(struct cbd_transport *cbdt, struct dax_device *dax_dev)
 	cbd_transports[cbdt->id] = cbdt;
 
 	access_size = dax_direct_access(dax_dev, 0, nr_pages, DAX_ACCESS, &kaddr, NULL);
-	if (access_size != 512*1024*1024) {
-		pr_err("dax size error\n");
+	if (access_size != nr_pages) {
+		pr_err("dax size error: %d\n", access_size);
 	}
 
 	cbdt->transport_info = (struct cbd_transport_info *)kaddr;
@@ -373,14 +374,14 @@ int cbd_transport_init(struct cbd_transport *cbdt, struct dax_device *dax_dev)
 	return cbdt;
 }
 
-int cbd_transport_destroy(int rid)
+int cbdt_unregister(u32 tid)
 {
 	struct cbd_transport *cbdt;
 
-	cbdt = cbd_transports[rid];
+	cbdt = cbd_transports[tid];
 
 	if (cbdt->host) {
-		pr_err("transport%d is busy, unregister host from regioan please.", rid);
+		pr_err("transport%d is busy, unregister host from regioan please.", tid);
 		return -EBUSY;
 	}
 
@@ -394,7 +395,6 @@ int cbd_transport_destroy(int rid)
 		fs_put_dax(cbdt->dax_dev, cbdt);
 
 	kfree(cbdt);
-	kfree(cbdt);
 
 	return 0;
 }
@@ -403,10 +403,6 @@ int cbd_transport_format(struct cbd_transport *cbdt, struct cbd_adm_options *opt
 {
 	struct cbd_transport_info *info = cbdt->transport_info;
 	u64 magic;
-
-	if (cbdt->size < (CBDT_CHANNEL_AREA_OFF + CBDT_CHANNEL_SIZE * CBDT_CHANNEL_NUM)) {
-		return -EINVAL;
-	}
 
 	mutex_lock(&cbdt->lock);
 	magic = readq(&info->magic);

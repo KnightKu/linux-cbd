@@ -90,7 +90,27 @@ out:
 	return ret;
 }
 
-static ssize_t add_transport_store(const struct bus_type *bus, const char *ubuf,
+static ssize_t transport_unregister_store(const struct bus_type *bus, const char *ubuf,
+				      size_t size)
+{
+	int ret;
+	u32 transport_id;
+
+	if (!capable(CAP_SYS_ADMIN))
+		return -EPERM;
+
+	if (sscanf(ubuf, "%u", &transport_id) != 1) {
+		return -EINVAL;
+	}
+
+	ret = cbdt_unregister(transport_id);
+	if (ret < 0)
+		return ret;
+
+	return size;
+}
+
+static ssize_t transport_register_store(const struct bus_type *bus, const char *ubuf,
 				      size_t size)
 {
 	int ret;
@@ -135,12 +155,14 @@ static ssize_t uuid_show(const struct bus_type *bus, char *buf)
 	return sprintf(buf, "%pUB\n", &cbd_uuid);
 }
 
-static BUS_ATTR_WO(add_transport);
+static BUS_ATTR_WO(transport_unregister);
+static BUS_ATTR_WO(transport_register);
 static BUS_ATTR_RO(uuid);
 static BUS_ATTR_RO(supported_features);
 
 static struct attribute *cbd_bus_attrs[] = {
-	&bus_attr_add_transport.attr,
+	&bus_attr_transport_unregister.attr,
+	&bus_attr_transport_register.attr,
 	&bus_attr_supported_features.attr,
 	&bus_attr_uuid.attr,
 	NULL,
