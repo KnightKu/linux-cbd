@@ -8,7 +8,6 @@
 #include <linux/uuid.h>
 #include <linux/sort.h>
 #include <linux/idr.h>
-#include <linux/cbd.h>
 #include <cxlmem.h>
 #include <cxl.h>
 #include "core.h"
@@ -3037,21 +3036,6 @@ out:
 
 	if (rc)
 		return rc;
-
-	if (p->for_cbd) {
-		struct cbd_region_param param = { 0 };
-
-		param.start = p->res->start;
-		param.size = p->res->end - p->res->start + 1;
-
-		if (cxlr->mode == CXL_DECODER_PMEM) {
-			param.flags |= CXL_BLKDEV_REGION_PARAM_F_PMEM;
-		}
-
-		cxlr->cbd_region_id = cbd_region_create(&param);
-
-		return 0;
-	}
 
 	switch (cxlr->mode) {
 	case CXL_DECODER_PMEM:

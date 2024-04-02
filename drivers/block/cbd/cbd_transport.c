@@ -1,4 +1,3 @@
-#include <linux/cbd.h>
 #include <linux/export.h>
 #include <linux/device.h>
 #include <linux/mm.h>
@@ -6,15 +5,15 @@
 
 #include "cbd_internal.h"
 
-static struct cbd_region *cbd_regions[CBD_REGION_MAX];
-static DEFINE_IDA(cbd_region_id_ida);
+static struct cbd_transport *cbd_transports[CBD_TRANSPORT_MAX];
+static DEFINE_IDA(cbd_transport_id_ida);
 
 static ssize_t cbd_backend_show(struct device *dev,
 			       struct device_attribute *attr,
 			       char *buf)
 {
-	struct cbd_region *cbdr;
-	struct cbd_region_info *info;
+	struct cbd_transport *cbdt;
+	struct cbd_transport_info *info;
 	struct cbd_backend_info *backend_info;
 	uuid_t b_uuid;
 	char path[CBD_PATH_LEN];
@@ -22,18 +21,18 @@ static ssize_t cbd_backend_show(struct device *dev,
 	ssize_t len = 0;
 	int i;
 
-	cbdr = container_of(dev, struct cbd_region, device);
+	cbdt = container_of(dev, struct cbd_transport, device);
 
-	ret = cbdr_validate(cbdr);
+	ret = cbdt_validate(cbdt);
 	if (ret < 0) {
-		cbdr_err(cbdr, "not a valid cbd region: %d", ret);
+		cbdt_err(cbdt, "not a valid cbd transport: %d", ret);
 		return ret;
 	}
 
-	info = cbdr->region_info;
+	info = cbdt->transport_info;
 
 	for (i = 0; i < readl(&info->backend_num); i++) {
-		backend_info = cbdr_get_backend_info(cbdr, i);
+		backend_info = cbdt_get_backend_info(cbdt, i);
 		memcpy_fromio(&b_uuid, backend_info->owner, UUID_SIZE);
 		memcpy_fromio(&path, backend_info->path, UUID_SIZE);
 		len += sprintf(buf + len, "%u,owner: %pUB,path: %s\n", i, &b_uuid, path);
@@ -49,19 +48,19 @@ static ssize_t cbd_myhost_show(struct device *dev,
 			       struct device_attribute *attr,
 			       char *buf)
 {
-	struct cbd_region *cbdr;
+	struct cbd_transport *cbdt;
 	struct cbd_host *host;
 	int ret;
 
-	cbdr = container_of(dev, struct cbd_region, device);
+	cbdt = container_of(dev, struct cbd_transport, device);
 
-	ret = cbdr_validate(cbdr);
+	ret = cbdt_validate(cbdt);
 	if (ret < 0) {
-		cbdr_err(cbdr, "not a valid cbd region: %d", ret);
+		cbdt_err(cbdt, "not a valid cbd transport: %d", ret);
 		return ret;
 	}
 
-	host = cbdr->host;
+	host = cbdt->host;
 	if (!host)
 		return 0;
 
@@ -72,50 +71,50 @@ static ssize_t cbd_myhost_show(struct device *dev,
 static DEVICE_ATTR(my_hostid, 0400, cbd_myhost_show, NULL);
 
 enum {
-	CBDR_ADM_OPT_ERR		= 0,
-	CBDR_ADM_OPT_OP,
-	CBDR_ADM_OPT_FORCE,
-	CBDR_ADM_OPT_PATH,
-	CBDR_ADM_OPT_BID,
-	CBDR_ADM_OPT_DID,
-	CBDR_ADM_OPT_HOSTNAME,
-	CBDR_ADM_OPT_QUEUES,
+	CBDT_ADM_OPT_ERR		= 0,
+	CBDT_ADM_OPT_OP,
+	CBDT_ADM_OPT_FORCE,
+	CBDT_ADM_OPT_PATH,
+	CBDT_ADM_OPT_BID,
+	CBDT_ADM_OPT_DID,
+	CBDT_ADM_OPT_HOSTNAME,
+	CBDT_ADM_OPT_QUEUES,
 };
 
 enum {
-	CBDR_ADM_OP_FORMAT,
-	CBDR_ADM_OP_B_START,
-	CBDR_ADM_OP_B_STOP,
-	CBDR_ADM_OP_B_CLEAR,
-	CBDR_ADM_OP_DEV_START,
-	CBDR_ADM_OP_DEV_STOP,
-	CBDR_ADM_OP_HOST_REG,
-	CBDR_ADM_OP_HOST_UNREG,
+	CBDT_ADM_OP_FORMAT,
+	CBDT_ADM_OP_B_START,
+	CBDT_ADM_OP_B_STOP,
+	CBDT_ADM_OP_B_CLEAR,
+	CBDT_ADM_OP_DEV_START,
+	CBDT_ADM_OP_DEV_STOP,
+	CBDT_ADM_OP_HOST_REG,
+	CBDT_ADM_OP_HOST_UNREG,
 };
 
 static const char *const adm_op_names[] = {
-	[CBDR_ADM_OP_FORMAT] = "format",
-	[CBDR_ADM_OP_B_START] = "backend-start",
-	[CBDR_ADM_OP_B_STOP] = "backend-stop",
-	[CBDR_ADM_OP_B_CLEAR] = "backend-clear",
-	[CBDR_ADM_OP_DEV_START] = "dev-start",
-	[CBDR_ADM_OP_DEV_STOP] = "dev-stop",
-	[CBDR_ADM_OP_HOST_REG] = "host-register",
-	[CBDR_ADM_OP_HOST_UNREG] = "host-unregister",
+	[CBDT_ADM_OP_FORMAT] = "format",
+	[CBDT_ADM_OP_B_START] = "backend-start",
+	[CBDT_ADM_OP_B_STOP] = "backend-stop",
+	[CBDT_ADM_OP_B_CLEAR] = "backend-clear",
+	[CBDT_ADM_OP_DEV_START] = "dev-start",
+	[CBDT_ADM_OP_DEV_STOP] = "dev-stop",
+	[CBDT_ADM_OP_HOST_REG] = "host-register",
+	[CBDT_ADM_OP_HOST_UNREG] = "host-unregister",
 };
 
 static const match_table_t adm_opt_tokens = {
-	{ CBDR_ADM_OPT_OP,		"op=%s"	},
-	{ CBDR_ADM_OPT_FORCE,		"force=%u" },
-	{ CBDR_ADM_OPT_PATH,		"path=%s" },
-	{ CBDR_ADM_OPT_BID,		"bid=%u" },
-	{ CBDR_ADM_OPT_DID,		"did=%u" },
-	{ CBDR_ADM_OPT_HOSTNAME,	"hostname=%s" },
-	{ CBDR_ADM_OPT_QUEUES,		"queues=%u" },
-	{ CBDR_ADM_OPT_ERR,		NULL	}
+	{ CBDT_ADM_OPT_OP,		"op=%s"	},
+	{ CBDT_ADM_OPT_FORCE,		"force=%u" },
+	{ CBDT_ADM_OPT_PATH,		"path=%s" },
+	{ CBDT_ADM_OPT_BID,		"bid=%u" },
+	{ CBDT_ADM_OPT_DID,		"did=%u" },
+	{ CBDT_ADM_OPT_HOSTNAME,	"hostname=%s" },
+	{ CBDT_ADM_OPT_QUEUES,		"queues=%u" },
+	{ CBDT_ADM_OPT_ERR,		NULL	}
 };
 
-static int parse_adm_options(struct cbd_region *cbdr,
+static int parse_adm_options(struct cbd_transport *cbdt,
 		char *buf,
 		struct cbd_adm_options *opts)
 {
@@ -132,7 +131,7 @@ static int parse_adm_options(struct cbd_region *cbdr,
 		pr_err("p: %s\n", p);
 		token = match_token(p, adm_opt_tokens, args);
 		switch (token) {
-		case CBDR_ADM_OPT_OP:
+		case CBDT_ADM_OPT_OP:
 			ret = match_string(adm_op_names, ARRAY_SIZE(adm_op_names), args[0].from);
 			if (ret < 0) {
 				pr_err("unknown op: '%s'\n", args[0].from);
@@ -141,42 +140,42 @@ static int parse_adm_options(struct cbd_region *cbdr,
 			}
 			opts->op = ret;;
 			break;
-		case CBDR_ADM_OPT_PATH:
+		case CBDT_ADM_OPT_PATH:
 			if (match_strlcpy(opts->backend.path, &args[0],
 			        CBD_PATH_LEN) == 0) {
 			        ret = -EINVAL;
 			        break;
 			}
 			break;
-		case CBDR_ADM_OPT_FORCE:
+		case CBDT_ADM_OPT_FORCE:
 			if (match_uint(args, &token) || token != 1) {
 				ret = -EINVAL;
 				goto out;
 			}
 			opts->force = 1;
 			break;
-		case CBDR_ADM_OPT_BID:
+		case CBDT_ADM_OPT_BID:
 			if (match_uint(args, &token)) {
 				ret = -EINVAL;
 				goto out;
 			}
 			opts->bid = token;
 			break;
-		case CBDR_ADM_OPT_DID:
+		case CBDT_ADM_OPT_DID:
 			if (match_uint(args, &token)) {
 				ret = -EINVAL;
 				goto out;
 			}
 			opts->blkdev.did = token;
 			break;
-		case CBDR_ADM_OPT_HOSTNAME:
+		case CBDT_ADM_OPT_HOSTNAME:
 			if (match_strlcpy(opts->host.hostname, &args[0],
 			        CBD_NAME_LEN) == 0) {
 			        ret = -EINVAL;
 			        break;
 			}
 			break;
-		case CBDR_ADM_OPT_QUEUES:
+		case CBDT_ADM_OPT_QUEUES:
 			if (match_uint(args, &token)) {
 				ret = -EINVAL;
 				goto out;
@@ -202,13 +201,13 @@ static ssize_t cbd_adm_store(struct device *dev,
 	int ret;
 	char *buf;
 	struct cbd_adm_options opts = { 0 };
-	struct cbd_region *cbdr;
+	struct cbd_transport *cbdt;
 
 	if (!capable(CAP_SYS_ADMIN))
 		return -EPERM;
 
 	pr_err("ubuf: %s\n", ubuf);
-	cbdr = container_of(dev, struct cbd_region, device);
+	cbdt = container_of(dev, struct cbd_transport, device);
 
 	buf = kmemdup(ubuf, size + 1, GFP_KERNEL);
 	if (IS_ERR(buf)) {
@@ -216,57 +215,57 @@ static ssize_t cbd_adm_store(struct device *dev,
 		return PTR_ERR(buf);
 	}
 	buf[size] = '\0';
-	ret = parse_adm_options(cbdr, buf, &opts);
+	ret = parse_adm_options(cbdt, buf, &opts);
 	if (ret < 0) {
 		kfree(buf);
 		return ret;
 	}
 	kfree(buf);
 
-	if (opts.op != CBDR_ADM_OP_FORMAT) {
-		ret = cbdr_validate(cbdr);
+	if (opts.op != CBDT_ADM_OP_FORMAT) {
+		ret = cbdt_validate(cbdt);
 		if (ret < 0) {
-			cbdr_err(cbdr, "not a valid cbd region: %d", ret);
+			cbdt_err(cbdt, "not a valid cbd transport: %d", ret);
 			return ret;
 		}
 	}
 
 	switch (opts.op) {
-	case CBDR_ADM_OP_FORMAT:
-		ret = cbd_region_format(cbdr, &opts);
+	case CBDT_ADM_OP_FORMAT:
+		ret = cbd_transport_format(cbdt, &opts);
 		if (ret < 0)
 			return ret;
 		break;
-	case CBDR_ADM_OP_B_START:
-		ret = cbd_backend_start(cbdr, &opts);
+	case CBDT_ADM_OP_B_START:
+		ret = cbd_backend_start(cbdt, &opts);
 		if (ret < 0)
 			return ret;
 		break;
-	case CBDR_ADM_OP_B_STOP:
-		ret = cbd_backend_stop(cbdr, &opts);
+	case CBDT_ADM_OP_B_STOP:
+		ret = cbd_backend_stop(cbdt, &opts);
 		if (ret < 0)
 			return ret;
 		break;
-	case CBDR_ADM_OP_B_CLEAR:
-		ret = cbd_backend_clear(cbdr, &opts);
+	case CBDT_ADM_OP_B_CLEAR:
+		ret = cbd_backend_clear(cbdt, &opts);
 		if (ret < 0)
 			return ret;
 		break;
-	case CBDR_ADM_OP_DEV_START:
-		ret = cbd_blkdev_start(cbdr, &opts);
+	case CBDT_ADM_OP_DEV_START:
+		ret = cbd_blkdev_start(cbdt, &opts);
 		if (ret < 0)
 			return ret;
 		break;
-	case CBDR_ADM_OP_DEV_STOP:
-		ret = cbd_blkdev_stop(cbdr, &opts);
+	case CBDT_ADM_OP_DEV_STOP:
+		ret = cbd_blkdev_stop(cbdt, &opts);
 		if (ret < 0)
 			return ret;
 		break;
-	case CBDR_ADM_OP_HOST_REG:
-		ret = cbd_host_register(cbdr, &opts);
+	case CBDT_ADM_OP_HOST_REG:
+		ret = cbd_host_register(cbdt, &opts);
 		break;
-	case CBDR_ADM_OP_HOST_UNREG:
-		ret = cbd_host_unregister(cbdr, &opts);
+	case CBDT_ADM_OP_HOST_UNREG:
+		ret = cbd_host_unregister(cbdt, &opts);
 		break;
 	default:
 		pr_err("invalid op: %d\n", opts.op);
@@ -285,22 +284,22 @@ static ssize_t cbd_info_show(struct device *dev,
 			       struct device_attribute *attr,
 			       char *buf)
 {
-	struct cbd_region *cbdr;
+	struct cbd_transport *cbdt;
 	int ret;
 
-	cbdr = container_of(dev, struct cbd_region, device);
+	cbdt = container_of(dev, struct cbd_transport, device);
 
-	ret = cbdr_validate(cbdr);
+	ret = cbdt_validate(cbdt);
 	if (ret < 0) {
-		cbdr_err(cbdr, "not a valid cbd region: %d", ret);
+		cbdt_err(cbdt, "not a valid cbd transport: %d", ret);
 		return ret;
 	}
 
-	return cbd_region_info(cbdr, buf);
+	return cbd_transport_info(cbdt, buf);
 }
 static DEVICE_ATTR(info, 0400, cbd_info_show, NULL);
 
-static struct attribute *cbd_region_attrs[] = {
+static struct attribute *cbd_transport_attrs[] = {
 	&dev_attr_backend.attr,
 	&dev_attr_adm.attr,
 	&dev_attr_info.attr,
@@ -308,194 +307,203 @@ static struct attribute *cbd_region_attrs[] = {
 	NULL
 };
 
-static struct attribute_group cbd_region_attr_group = {
-	.attrs = cbd_region_attrs,
+static struct attribute_group cbd_transport_attr_group = {
+	.attrs = cbd_transport_attrs,
 };
 
-static const struct attribute_group *cbd_region_attr_groups[] = {
-	&cbd_region_attr_group,
+static const struct attribute_group *cbd_transport_attr_groups[] = {
+	&cbd_transport_attr_group,
 	NULL
 };
 
-static void cbd_region_release(struct device *dev)
+static void cbd_transport_release(struct device *dev)
 {
 }
 
-struct device_type cbd_region_type = {
-	.name		= "cbd_region",
-	.groups		= cbd_region_attr_groups,
-	.release	= cbd_region_release,
+struct device_type cbd_transport_type = {
+	.name		= "cbd_transport",
+	.groups		= cbd_transport_attr_groups,
+	.release	= cbd_transport_release,
 };
 
-static struct cbd_region *cbd_region_alloc(struct cbd_region_param *cbd_rp)
+#define CXL_BLKDEV_TRANSPORT_PARAM_F_PMEM		1
+
+struct cbd_transport_param {
+	u64	start;
+	u64	size;
+
+	u32	flags;
+};
+
+static struct cbd_transport *cbd_transport_alloc(struct cbd_transport_param *cbd_rp)
 {
-	struct cbd_region *cbdr;
-	struct cbd_region_info *region_info;
+	struct cbd_transport *cbdt;
+	struct cbd_transport_info *transport_info;
 	struct device *dev;
 	int i;
 
-	cbdr = kzalloc(sizeof(struct cbd_region), GFP_KERNEL);
-	if (!cbdr) {
+	cbdt = kzalloc(sizeof(struct cbd_transport), GFP_KERNEL);
+	if (!cbdt) {
 		return NULL;
 	}
 
-	cbdr->id = ida_simple_get(&cbd_region_id_ida, 0, 16,
+	cbdt->id = ida_simple_get(&cbd_transport_id_ida, 0, 16,
 					 GFP_KERNEL);
 
-	cbd_regions[cbdr->id] = cbdr;
-	cbdr->start = cbd_rp->start;
-	cbdr->size = cbd_rp->size;
+	cbd_transports[cbdt->id] = cbdt;
+	cbdt->start = cbd_rp->start;
+	cbdt->size = cbd_rp->size;
 
-	region_info = memremap(cbdr->start, cbdr->size, MEMREMAP_WB);
-	if (is_vmalloc_addr(region_info))
+	transport_info = memremap(cbdt->start, cbdt->size, MEMREMAP_WB);
+	if (is_vmalloc_addr(transport_info))
 		pr_err("is vmalloc_addr");
-	cbdr->region_info = region_info;
-	mutex_init(&cbdr->lock);
-	INIT_LIST_HEAD(&cbdr->backends);
-	INIT_LIST_HEAD(&cbdr->devices);
+	cbdt->transport_info = transport_info;
+	mutex_init(&cbdt->lock);
+	INIT_LIST_HEAD(&cbdt->backends);
+	INIT_LIST_HEAD(&cbdt->devices);
 
-	dev = &cbdr->device;
+	dev = &cbdt->device;
 	device_initialize(dev);
 	device_set_pm_not_required(dev);
 	dev->bus = &cbd_bus_type;
-	dev->type = &cbd_region_type;
+	dev->type = &cbd_transport_type;
 	dev->parent = &cbd_root_dev;
 
-	dev_set_name(&cbdr->device, "region%d", cbdr->id);
+	dev_set_name(&cbdt->device, "transport%d", cbdt->id);
 	pr_err("device_add");
-	device_add(&cbdr->device);
+	device_add(&cbdt->device);
 
-	return cbdr;
+	return cbdt;
 
-cbdr_free:
-	kfree(cbdr);
+cbdt_free:
+	kfree(cbdt);
 	return NULL;
 }
 
-int cbd_region_create(struct cbd_region_param *cbd_rp)
+int cbd_transport_create(struct cbd_transport_param *cbd_rp)
 {
-	struct cbd_region *cbdr;
+	struct cbd_transport *cbdt;
 	int ret;
 	int i;
 
-	pr_err("alloc region");
-	cbdr = cbd_region_alloc(cbd_rp);
-	if (!cbdr) {
+	pr_err("alloc transport");
+	cbdt = cbd_transport_alloc(cbd_rp);
+	if (!cbdt) {
 		return -ENOMEM;
 	}
 
-	pr_err("id: %d", cbdr->id);
-	return cbdr->id;
+	pr_err("id: %d", cbdt->id);
+	return cbdt->id;
 
-region_free:
-	kfree(cbdr);
+transport_free:
+	kfree(cbdt);
 	return ret;
 }
-EXPORT_SYMBOL(cbd_region_create);
+EXPORT_SYMBOL(cbd_transport_create);
 
-int cbd_region_destroy(int rid)
+int cbd_transport_destroy(int rid)
 {
-	struct cbd_region *cbdr;
+	struct cbd_transport *cbdt;
 
-	cbdr = cbd_regions[rid];
+	cbdt = cbd_transports[rid];
 
-	if (cbdr->host) {
-		pr_err("region%d is busy, unregister host from regioan please.", rid);
+	if (cbdt->host) {
+		pr_err("transport%d is busy, unregister host from regioan please.", rid);
 		return -EBUSY;
 	}
 
-	ida_simple_remove(&cbd_region_id_ida, cbdr->id);
+	ida_simple_remove(&cbd_transport_id_ida, cbdt->id);
 
-	memunmap(cbdr->region_info);
+	memunmap(cbdt->transport_info);
 
-	device_unregister(&cbdr->device);
-	kfree(cbdr);
+	device_unregister(&cbdt->device);
+	kfree(cbdt);
 
 	return 0;
 }
-EXPORT_SYMBOL(cbd_region_destroy);
+EXPORT_SYMBOL(cbd_transport_destroy);
 
-int cbd_region_format(struct cbd_region *cbdr, struct cbd_adm_options *opts)
+int cbd_transport_format(struct cbd_transport *cbdt, struct cbd_adm_options *opts)
 {
-	struct cbd_region_info *info = cbdr->region_info;
+	struct cbd_transport_info *info = cbdt->transport_info;
 	u64 magic;
 
-	if (cbdr->size < (CBDR_CHANNEL_AREA_OFF + CBDR_CHANNEL_SIZE * CBDR_CHANNEL_NUM)) {
+	if (cbdt->size < (CBDT_CHANNEL_AREA_OFF + CBDT_CHANNEL_SIZE * CBDT_CHANNEL_NUM)) {
 		return -EINVAL;
 	}
 
-	mutex_lock(&cbdr->lock);
+	mutex_lock(&cbdt->lock);
 	magic = readq(&info->magic);
 	if (magic && !opts->force) {
-		mutex_unlock(&cbdr->lock);
+		mutex_unlock(&cbdt->lock);
 		return -EEXIST;
 	}
 
-	memset(info, 0, CBDR_CHANNEL_AREA_OFF + CBDR_CHANNEL_SIZE * 2);
+	memset(info, 0, CBDT_CHANNEL_AREA_OFF + CBDT_CHANNEL_SIZE * 2);
 
-	writeq(CBD_REGION_MAGIC, &info->magic);
-	writew(CBD_REGION_VERSION, &info->version);
+	writeq(CBD_TRANSPORT_MAGIC, &info->magic);
+	writew(CBD_TRANSPORT_VERSION, &info->version);
 
-	writeq(CBDR_HOST_AREA_OFF, &info->host_area_off);
-	writel(CBDR_HOST_INFO_SIZE, &info->host_info_size);
-	writel(CBDR_HOST_NUM, &info->host_num);
+	writeq(CBDT_HOST_AREA_OFF, &info->host_area_off);
+	writel(CBDT_HOST_INFO_SIZE, &info->host_info_size);
+	writel(CBDT_HOST_NUM, &info->host_num);
 
-	writeq(CBDR_BACKEND_AREA_OFF, &info->backend_area_off);
-	writel(CBDR_BACKEND_INFO_SIZE, &info->backend_info_size);
-	writel(CBDR_BACKEND_NUM, &info->backend_num);
+	writeq(CBDT_BACKEND_AREA_OFF, &info->backend_area_off);
+	writel(CBDT_BACKEND_INFO_SIZE, &info->backend_info_size);
+	writel(CBDT_BACKEND_NUM, &info->backend_num);
 
-	writeq(CBDR_BLKDEV_AREA_OFF, &info->blkdev_area_off);
-	writel(CBDR_BLKDEV_INFO_SIZE, &info->blkdev_info_size);
-	writel(CBDR_BLKDEV_NUM, &info->blkdev_num);
+	writeq(CBDT_BLKDEV_AREA_OFF, &info->blkdev_area_off);
+	writel(CBDT_BLKDEV_INFO_SIZE, &info->blkdev_info_size);
+	writel(CBDT_BLKDEV_NUM, &info->blkdev_num);
 
-	writeq(CBDR_CHANNEL_AREA_OFF, &info->channel_area_off);
-	writel(CBDR_CHANNEL_SIZE, &info->channel_size);
-	writel(CBDR_CHANNEL_NUM, &info->channel_num);
+	writeq(CBDT_CHANNEL_AREA_OFF, &info->channel_area_off);
+	writel(CBDT_CHANNEL_SIZE, &info->channel_size);
+	writel(CBDT_CHANNEL_NUM, &info->channel_num);
 
 	struct cbd_channel_info __iomem *channel_info;
 	int i;
 
 	for (i = 0; i < info->channel_num; i++) {
-		channel_info = __get_channel_info(cbdr, i);
+		channel_info = __get_channel_info(cbdt, i);
 		memset(channel_info, 0, 4096);
 	}
 
-	mutex_unlock(&cbdr->lock);
+	mutex_unlock(&cbdt->lock);
 
 	return 0;
 }
 
-int cbdr_validate(struct cbd_region *cbdr)
+int cbdt_validate(struct cbd_transport *cbdt)
 {
-	struct cbd_region_info *info = cbdr->region_info;
+	struct cbd_transport_info *info = cbdt->transport_info;
 	u64 magic;
 	int ret = 0;
 
-	mutex_lock(&cbdr->lock);
-	info = cbdr->region_info;
+	mutex_lock(&cbdt->lock);
+	info = cbdt->transport_info;
 
-	if (readq(&info->magic) != CBD_REGION_MAGIC) {
+	if (readq(&info->magic) != CBD_TRANSPORT_MAGIC) {
 		ret = -EINVAL;
 	}
 
-	mutex_unlock(&cbdr->lock);
+	mutex_unlock(&cbdt->lock);
 
 	return ret;
 }
 
-ssize_t cbd_region_info(struct cbd_region *cbdr, char *buf)
+ssize_t cbd_transport_info(struct cbd_transport *cbdt, char *buf)
 {
-	struct cbd_region_info *info = cbdr->region_info;
+	struct cbd_transport_info *info = cbdt->transport_info;
 	u64 magic;
 	ssize_t ret;
 
-	mutex_lock(&cbdr->lock);
-	info = cbdr->region_info;
+	mutex_lock(&cbdt->lock);
+	info = cbdt->transport_info;
 
 	magic = readq(&info->magic);
-	mutex_unlock(&cbdr->lock);
+	mutex_unlock(&cbdt->lock);
 
-	if (magic != CBD_REGION_MAGIC) {
+	if (magic != CBD_TRANSPORT_MAGIC) {
 		return sprintf(buf, "invalid magic number: 0x%llx\n", magic);
 	}
 

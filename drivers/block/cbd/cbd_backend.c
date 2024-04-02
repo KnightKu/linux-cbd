@@ -76,13 +76,13 @@ struct device_type cbd_backends_type = {
 	.release	= cbd_backend_release,
 };
 
-int cbd_backends_init(struct cbd_region *cbdr)
+int cbd_backends_init(struct cbd_transport *cbdt)
 {
 	struct cbd_backends_device *cbd_backends_dev;
 	struct cbd_backend_device *backend;
 	int i;
 
-	cbd_backends_dev = kzalloc(sizeof(struct cbd_backends_device) + cbdr->region_info->backend_num * sizeof(struct cbd_backend_device), GFP_KERNEL);
+	cbd_backends_dev = kzalloc(sizeof(struct cbd_backends_device) + cbdt->transport_info->backend_num * sizeof(struct cbd_backend_device), GFP_KERNEL);
 	if (!cbd_backends_dev) {
 		return -ENOMEM;
 	}
@@ -90,15 +90,15 @@ int cbd_backends_init(struct cbd_region *cbdr)
 	device_initialize(&cbd_backends_dev->backends_dev);
 	device_set_pm_not_required(&cbd_backends_dev->backends_dev);
 	dev_set_name(&cbd_backends_dev->backends_dev, "cbd_backends");
-	cbd_backends_dev->backends_dev.parent = &cbdr->device;
+	cbd_backends_dev->backends_dev.parent = &cbdt->device;
 	cbd_backends_dev->backends_dev.type = &cbd_backends_type;
 	device_add(&cbd_backends_dev->backends_dev);
 
-	for (i = 0; i < cbdr->region_info->backend_num; i++) {
+	for (i = 0; i < cbdt->transport_info->backend_num; i++) {
 		struct cbd_backend_device *backend = &cbd_backends_dev->backend_devs[i];
 		struct device *backend_dev = &backend->dev;
 
-		backend->backend_info = cbdr_get_backend_info(cbdr, i);
+		backend->backend_info = cbdt_get_backend_info(cbdt, i);
 		device_initialize(backend_dev);
 		device_set_pm_not_required(backend_dev);
 		dev_set_name(backend_dev, "backend%u", i);
@@ -107,20 +107,20 @@ int cbd_backends_init(struct cbd_region *cbdr)
 
 		device_add(backend_dev);
 	}
-	cbdr->cbd_backends_dev = cbd_backends_dev;
+	cbdt->cbd_backends_dev = cbd_backends_dev;
 
 	return 0;
 }
 
-int cbd_backends_exit(struct cbd_region *cbdr)
+int cbd_backends_exit(struct cbd_transport *cbdt)
 {
-	struct cbd_backends_device *cbd_backends_dev = cbdr->cbd_backends_dev;
+	struct cbd_backends_device *cbd_backends_dev = cbdt->cbd_backends_dev;
 	int i;
 
 	if (!cbd_backends_dev)
 		return 0;
 
-	for (i = 0; i < cbdr->region_info->backend_num; i++) {
+	for (i = 0; i < cbdt->transport_info->backend_num; i++) {
 		struct cbd_backend_device *backend = &cbd_backends_dev->backend_devs[i];
 		struct device *backend_dev = &backend->dev;
 
@@ -130,7 +130,7 @@ int cbd_backends_exit(struct cbd_region *cbdr)
 	device_del(&cbd_backends_dev->backends_dev);
 
 	kfree(cbd_backends_dev);
-	cbdr->cbd_backends_dev = NULL;
+	cbdt->cbd_backends_dev = NULL;
 
 	return 0;
 }
@@ -463,7 +463,7 @@ struct device_type handler_type = {
 
 static int create_handler(struct cbd_backend *cbd_b, u32 channel_id)
 {
-	struct cbd_region *cbdr = cbd_b->cbdr;
+	struct cbd_transport *cbdt = cbd_b->cbdt;
 	struct cbd_channel_info *channel_info;
 	struct cbd_backend_handler *handler;
 
@@ -475,7 +475,7 @@ static int create_handler(struct cbd_backend *cbd_b, u32 channel_id)
 	}
 
 	handler->cbd_b = cbd_b;
-	channel_info = cbdr_get_channel_info(cbdr, channel_id);
+	channel_info = cbdt_get_channel_info(cbdt, channel_id);
 
 	handler->channel_id = channel_id;
 	handler->channel.channel_id = channel_id;
@@ -567,14 +567,14 @@ void destroy_handlers(struct cbd_backend *cbd_b)
 void state_work_fn(struct work_struct *work)
 {
 	struct cbd_backend *cbd_b = container_of(work, struct cbd_backend, state_work.work);
-	struct cbd_region *cbd_r = cbd_b->cbdr;
-	struct cbd_region_info __iomem *region_info = cbd_r->region_info;
+	struct cbd_transport *cbd_r = cbd_b->cbdt;
+	struct cbd_transport_info __iomem *transport_info = cbd_r->transport_info;
 	struct cbd_channel_info __iomem *channel_info;
 	u32 blkdev_state, backend_state, backend_id;
 	int i;
 
-	for (i = 0; i < cbd_r->region_info->channel_num; i++) {
-		channel_info = cbdr_get_channel_info(cbd_r, i);
+	for (i = 0; i < cbd_r->transport_info->channel_num; i++) {
+		channel_info = cbdt_get_channel_info(cbd_r, i);
 		//pr_err("channel_info: %p", channel_info);
 		blkdev_state = cbd_channel_get_blkdev_state(channel_info);
 		backend_state = cbd_channel_get_backend_state(channel_info);
@@ -609,9 +609,9 @@ static int cbd_backend_init(struct cbd_backend *cbd_b, struct cbd_adm_options *o
 {
 	int ret;
 	struct cbd_backend_info *b_info;
-	struct cbd_region *cbdr = cbd_b->cbdr;
+	struct cbd_transport *cbdt = cbd_b->cbdt;
 
-	b_info = cbdr_get_backend_info(cbdr, cbd_b->bid);
+	b_info = cbdt_get_backend_info(cbdt, cbd_b->bid);
 	cbd_b->backend_info = b_info;
 	pr_err("owner: %pUB", b_info->owner);
 
@@ -631,7 +631,7 @@ static int cbd_backend_init(struct cbd_backend *cbd_b, struct cbd_adm_options *o
 
 	INIT_DELAYED_WORK(&cbd_b->state_work, state_work_fn);
 	INIT_LIST_HEAD(&cbd_b->handlers);
-	cbd_b->backend_device = &cbdr->cbd_backends_dev->backend_devs[cbd_b->bid];
+	cbd_b->backend_device = &cbdt->cbd_backends_dev->backend_devs[cbd_b->bid];
 
 	mutex_init(&cbd_b->lock);
 
@@ -641,7 +641,7 @@ static int cbd_backend_init(struct cbd_backend *cbd_b, struct cbd_adm_options *o
 }
 
 
-int cbd_backend_start(struct cbd_region *cbdr, struct cbd_adm_options *opts)
+int cbd_backend_start(struct cbd_transport *cbdt, struct cbd_adm_options *opts)
 {
 	struct cbd_backend *backend;
 	struct cbd_backend_info *backend_info;
@@ -649,13 +649,13 @@ int cbd_backend_start(struct cbd_region *cbdr, struct cbd_adm_options *opts)
 	u32 bid;
 	int ret;
 
-	ret = cbdr_get_empty_bid(cbdr, &bid);
+	ret = cbdt_get_empty_bid(cbdt, &bid);
 	if (ret) {
 		pr_err("failed to find empty bid: %d\n", ret);
 		return ret;
 	}
 
-	backend_info = cbdr_get_backend_info(cbdr, bid);
+	backend_info = cbdt_get_backend_info(cbdt, bid);
 	memcpy_fromio(&b_uuid, backend_info->owner, UUID_SIZE);
 
 	if (!uuid_equal(&b_uuid, &uuid_null))
@@ -670,21 +670,21 @@ int cbd_backend_start(struct cbd_region *cbdr, struct cbd_adm_options *opts)
 	memcpy_toio(backend_info->path, backend->path, CBD_PATH_LEN);
 	INIT_LIST_HEAD(&backend->node);
 	backend->bid = bid;
-	cbdr_add_backend(cbdr, backend);
+	cbdt_add_backend(cbdt, backend);
 
-	backend->cbdr = cbdr;
+	backend->cbdt = cbdt;
 
 	cbd_backend_init(backend, opts);
 
 	return 0;
 }
 
-int cbd_backend_stop(struct cbd_region *cbdr, struct cbd_adm_options *opts)
+int cbd_backend_stop(struct cbd_transport *cbdt, struct cbd_adm_options *opts)
 {
 	struct cbd_backend *cbd_b;
 	struct cbd_backend_info *backend_info;
 
-	cbd_b = cbdr_fetch_backend(cbdr, opts->bid);
+	cbd_b = cbdt_fetch_backend(cbdt, opts->bid);
 	if (!cbd_b) {
 		return -ENOENT;
 	}
@@ -692,7 +692,7 @@ int cbd_backend_stop(struct cbd_region *cbdr, struct cbd_adm_options *opts)
 	cancel_delayed_work_sync(&cbd_b->state_work);
 	destroy_handlers(cbd_b);
 
-	backend_info = cbdr_get_backend_info(cbdr, cbd_b->bid);
+	backend_info = cbdt_get_backend_info(cbdt, cbd_b->bid);
 	memcpy_toio(backend_info->owner, &uuid_null, UUID_SIZE);
 
 	drain_workqueue(cbd_b->task_wq);
@@ -703,12 +703,12 @@ int cbd_backend_stop(struct cbd_region *cbdr, struct cbd_adm_options *opts)
 	return 0;
 }
 
-int cbd_backend_clear(struct cbd_region *cbdr, struct cbd_adm_options *opts)
+int cbd_backend_clear(struct cbd_transport *cbdt, struct cbd_adm_options *opts)
 {
 	struct cbd_backend *cbd_b;
 	struct cbd_backend_info *backend_info;
 
-	backend_info = cbdr_get_backend_info(cbdr, opts->bid);
+	backend_info = cbdt_get_backend_info(cbdt, opts->bid);
 	memcpy_toio(backend_info->owner, &uuid_null, UUID_SIZE);
 
 	return 0;

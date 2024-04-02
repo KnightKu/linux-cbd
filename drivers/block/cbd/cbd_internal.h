@@ -15,7 +15,7 @@
 #define CBD_REQUEST_STATS 1
 //#undef CBD_REQUEST_STATS
 
-#define CBD_REGION_MAX	1024
+#define CBD_TRANSPORT_MAX	1024
 #define CBD_PATH_LEN	512
 #define CBD_NAME_LEN	32
 
@@ -27,11 +27,11 @@
 #define CBD_DEV_NAME_LEN 32
 
 
-/*   cbd_region_info       hosts         backends                         channel0                          channel1     ...
+/*   cbd_transport_info       hosts         backends                         channel0                          channel1     ...
  * |-----------------|---------------|--------------|-------------------------------------------------|----------------|------|
  * |                 | host| host|...|              | CTRL | COMPR_SIZE | CMDR_SIZE |                 |
  * |                 |               |              |         META_SIZE             |    DATA_SIZE    |
- * | CBDR_INFO_SIZE  |               |              |                CHANNEL_SIZE                     |
+ * | CBDT_INFO_SIZE  |               |              |                CHANNEL_SIZE                     |
  */
 
 /* cbd channel */
@@ -59,28 +59,28 @@
 #define CBDC_UPDATE_COMPR_HEAD(head, used, size) writel(((head % size) + used) % size, &head)
 #define CBDC_UPDATE_COMPR_TAIL(tail, used, size) smp_store_release(&tail, ((tail % size) + used) % size)
 
-/* cbd region */
-#define CBD_REGION_MAGIC	0x676896C596EFULL
-#define CBD_REGION_VERSION 1
+/* cbd transport */
+#define CBD_TRANSPORT_MAGIC	0x676896C596EFULL
+#define CBD_TRANSPORT_VERSION 1
 
-#define CBDR_INFO_OFF			0
-#define CBDR_INFO_SIZE			4096
+#define CBDT_INFO_OFF			0
+#define CBDT_INFO_SIZE			4096
 
-#define CBDR_HOST_AREA_OFF		(CBDR_INFO_OFF + CBDR_INFO_SIZE)
-#define CBDR_HOST_INFO_SIZE		4096
-#define CBDR_HOST_NUM			16
+#define CBDT_HOST_AREA_OFF		(CBDT_INFO_OFF + CBDT_INFO_SIZE)
+#define CBDT_HOST_INFO_SIZE		4096
+#define CBDT_HOST_NUM			16
 
-#define CBDR_BACKEND_AREA_OFF		(CBDR_HOST_AREA_OFF + (CBDR_HOST_INFO_SIZE * CBDR_HOST_NUM))
-#define CBDR_BACKEND_INFO_SIZE		4096
-#define CBDR_BACKEND_NUM		16
+#define CBDT_BACKEND_AREA_OFF		(CBDT_HOST_AREA_OFF + (CBDT_HOST_INFO_SIZE * CBDT_HOST_NUM))
+#define CBDT_BACKEND_INFO_SIZE		4096
+#define CBDT_BACKEND_NUM		16
 
-#define CBDR_BLKDEV_AREA_OFF		(CBDR_BACKEND_AREA_OFF + (CBDR_BACKEND_INFO_SIZE * CBDR_BACKEND_NUM))
-#define CBDR_BLKDEV_INFO_SIZE		4096
-#define CBDR_BLKDEV_NUM			32
+#define CBDT_BLKDEV_AREA_OFF		(CBDT_BACKEND_AREA_OFF + (CBDT_BACKEND_INFO_SIZE * CBDT_BACKEND_NUM))
+#define CBDT_BLKDEV_INFO_SIZE		4096
+#define CBDT_BLKDEV_NUM			32
 
-#define CBDR_CHANNEL_AREA_OFF		(CBDR_BLKDEV_AREA_OFF + (CBDR_BLKDEV_INFO_SIZE * CBDR_BLKDEV_NUM))
-#define CBDR_CHANNEL_SIZE		(CBDC_META_SIZE + CBDC_DATA_SIZE)
-#define CBDR_CHANNEL_NUM		16
+#define CBDT_CHANNEL_AREA_OFF		(CBDT_BLKDEV_AREA_OFF + (CBDT_BLKDEV_INFO_SIZE * CBDT_BLKDEV_NUM))
+#define CBDT_CHANNEL_SIZE		(CBDC_META_SIZE + CBDC_DATA_SIZE)
+#define CBDT_CHANNEL_NUM		16
 
 static u64 delay = HZ;
 
@@ -116,19 +116,19 @@ static u64 delay = HZ;
 	cbd_blk_debug(queue->cbd_blkdev, "queue-%d: " fmt,			\
 		     queue->index, ##__VA_ARGS__)
 
-#define cbdr_err(region, fmt, ...)				\
-	cbd_err("cbd_region%u: " fmt,					\
-		 region->id, ##__VA_ARGS__)
+#define cbdt_err(transport, fmt, ...)				\
+	cbd_err("cbd_transport%u: " fmt,					\
+		 transport->id, ##__VA_ARGS__)
 
-#define cbdr_info(region, fmt, ...)				\
-	cbd_info("cbd_region%u: " fmt,					\
-		 region->id, ##__VA_ARGS__)
+#define cbdt_info(transport, fmt, ...)				\
+	cbd_info("cbd_transport%u: " fmt,					\
+		 transport->id, ##__VA_ARGS__)
 
-#define cbdr_debug(region, fmt, ...)				\
-	cbd_debug("cbd_region%u: " fmt,					\
-		 region->id, ##__VA_ARGS__)
+#define cbdt_debug(transport, fmt, ...)				\
+	cbd_debug("cbd_transport%u: " fmt,					\
+		 transport->id, ##__VA_ARGS__)
 
-struct cbd_region_info {
+struct cbd_transport_info {
 	__le64 magic;
 	__le16 version;
 	__le16 flags;
@@ -274,7 +274,7 @@ struct cbd_backend_handler {
 struct cbd_backend {
 	u32 bid;
 	char path[CBD_PATH_LEN];
-	struct cbd_region *cbdr;
+	struct cbd_transport *cbdt;
 	struct cbd_backend_info __iomem *backend_info;
 	struct mutex lock;
 
@@ -391,7 +391,7 @@ static struct cbd_blkdev {
 	struct cbd_blkdev_device *blkdev_dev;
 	struct cbd_blkdev_info __iomem *blkdev_info;
 
-	struct cbd_region *cbd_r;
+	struct cbd_transport *cbd_r;
 
 	struct dentry		*dev_debugfs_d;
 	struct dentry		*dev_debugfs_queues_d;
@@ -399,24 +399,20 @@ static struct cbd_blkdev {
 
 struct cbd_host {
 	u32	hostid;
-	struct cbd_region *region;
+	struct cbd_transport *transport;
 	struct cbd_host_device *dev;
 	struct cbd_host_info __iomem *host_info;
 	struct delayed_work	hb_work; /* heartbeat work */
 };
 
 struct cbd_transport {
-	u16 id;
-};
-
-struct cbd_region {
 	u16	id;
 	u64	start;
 	u64	size;
 	struct device device;
 	struct mutex lock;
 
-	struct cbd_region_info __iomem *region_info;
+	struct cbd_transport_info __iomem *transport_info;
 
 	struct list_head backends;
 	struct list_head devices;
@@ -429,19 +425,19 @@ struct cbd_region {
 	struct cbd_host *host;
 };
 
-static inline void cbdr_add_backend(struct cbd_region *cbdr, struct cbd_backend *cbdb)
+static inline void cbdt_add_backend(struct cbd_transport *cbdt, struct cbd_backend *cbdb)
 {
-	mutex_lock(&cbdr->lock);
-	list_add(&cbdb->node, &cbdr->backends);
-	mutex_unlock(&cbdr->lock);
+	mutex_lock(&cbdt->lock);
+	list_add(&cbdb->node, &cbdt->backends);
+	mutex_unlock(&cbdt->lock);
 }
 
-static inline struct cbd_backend *cbdr_fetch_backend(struct cbd_region *cbdr, u32 id)
+static inline struct cbd_backend *cbdt_fetch_backend(struct cbd_transport *cbdt, u32 id)
 {
 	struct cbd_backend *backend;
 
-	mutex_lock(&cbdr->lock);
-	list_for_each_entry(backend, &cbdr->backends, node) {
+	mutex_lock(&cbdt->lock);
+	list_for_each_entry(backend, &cbdt->backends, node) {
 		if (backend->bid == id) {
 			list_del(&backend->node);
 			goto out;
@@ -449,23 +445,23 @@ static inline struct cbd_backend *cbdr_fetch_backend(struct cbd_region *cbdr, u3
 	}
 	backend = NULL;
 out:
-	mutex_unlock(&cbdr->lock);
+	mutex_unlock(&cbdt->lock);
 	return backend;
 }
 
-static inline struct cbd_blkdev *cbdr_get_device(struct cbd_region *cbdr, u32 id)
+static inline struct cbd_blkdev *cbdt_get_device(struct cbd_transport *cbdt, u32 id)
 {
 	struct cbd_blkdev *dev;
 
-	mutex_lock(&cbdr->lock);
-	list_for_each_entry(dev, &cbdr->devices, node) {
+	mutex_lock(&cbdt->lock);
+	list_for_each_entry(dev, &cbdt->devices, node) {
 		if (dev->blkdev_id == id) {
 			goto out;
 		}
 	}
 	dev = NULL;
 out:
-	mutex_unlock(&cbdr->lock);
+	mutex_unlock(&cbdt->lock);
 	return dev;
 }
 
@@ -502,36 +498,36 @@ CBD_GETTER_AND_SETTER(channel, backend, state, CBDC_BACKEND_STATE_MASK);
 CBD_GETTER_AND_SETTER(channel, backend, id, CBDC_BACKEND_ID_MASK);
 
 
-static inline void __iomem *__get_channel_info(struct cbd_region *cbdr, u32 id)
+static inline void __iomem *__get_channel_info(struct cbd_transport *cbdt, u32 id)
 {
-	struct cbd_region_info *info = cbdr->region_info;
-	void __iomem *start = cbdr->region_info;
+	struct cbd_transport_info *info = cbdt->transport_info;
+	void __iomem *start = cbdt->transport_info;
 
 	return (start + info->channel_area_off + (info->channel_size * id));
 }
 
-static inline void __iomem *cbdr_get_channel_info(struct cbd_region *cbdr, u32 id)
+static inline void __iomem *cbdt_get_channel_info(struct cbd_transport *cbdt, u32 id)
 {
 	void __iomem *addr;
 
-	mutex_lock(&cbdr->lock);
-	addr = __get_channel_info(cbdr, id);
-	mutex_unlock(&cbdr->lock);
+	mutex_lock(&cbdt->lock);
+	addr = __get_channel_info(cbdt, id);
+	mutex_unlock(&cbdt->lock);
 
 	return addr;
 }
 
-static inline int cbdr_get_empty_channel_id(struct cbd_region *cbdr, u32 *id)
+static inline int cbdt_get_empty_channel_id(struct cbd_transport *cbdt, u32 *id)
 {
-	struct cbd_region_info __iomem *info = cbdr->region_info;
+	struct cbd_transport_info __iomem *info = cbdt->transport_info;
 	struct cbd_channel_info __iomem *channel_info;
 	int ret = 0;
 	int i;
 
 	pr_err("info: %p", info);
-	mutex_lock(&cbdr->lock);
+	mutex_lock(&cbdt->lock);
 	for (i = 0; i < info->channel_num; i++) {
-		channel_info = __get_channel_info(cbdr, i);
+		channel_info = __get_channel_info(cbdt, i);
 		pr_err("channel_info: %p", channel_info);
 		if (cbd_channel_get_blkdev_state(channel_info) != cbdc_blkdev_state_running &&
 				cbd_channel_get_backend_state(channel_info) != cbdc_backend_state_running) {
@@ -542,42 +538,42 @@ static inline int cbdr_get_empty_channel_id(struct cbd_region *cbdr, u32 *id)
 
 	ret = -ENOENT;
 out:
-	mutex_unlock(&cbdr->lock);
+	mutex_unlock(&cbdt->lock);
 
 	return ret;
 }
 
-static inline void __iomem *__get_blkdev_info(struct cbd_region *cbdr, u32 id)
+static inline void __iomem *__get_blkdev_info(struct cbd_transport *cbdt, u32 id)
 {
-	struct cbd_region_info *info = cbdr->region_info;
-	void __iomem *start = cbdr->region_info;
+	struct cbd_transport_info *info = cbdt->transport_info;
+	void __iomem *start = cbdt->transport_info;
 
 	return start + info->blkdev_area_off + (info->blkdev_info_size * id);
 }
 
-static inline void __iomem *cbdr_get_blkdev_info(struct cbd_region *cbdr, u32 id)
+static inline void __iomem *cbdt_get_blkdev_info(struct cbd_transport *cbdt, u32 id)
 {
-	struct cbd_region_info __iomem *info = cbdr->region_info;
-	void __iomem *start = cbdr->region_info;
+	struct cbd_transport_info __iomem *info = cbdt->transport_info;
+	void __iomem *start = cbdt->transport_info;
 	void __iomem *addr;
 
-	mutex_lock(&cbdr->lock);
-	addr = __get_blkdev_info(cbdr, id);
-	mutex_unlock(&cbdr->lock);
+	mutex_lock(&cbdt->lock);
+	addr = __get_blkdev_info(cbdt, id);
+	mutex_unlock(&cbdt->lock);
 
 	return addr;
 }
 
-static inline int cbdr_get_empty_blkdev_id(struct cbd_region *cbdr, u32 *id)
+static inline int cbdt_get_empty_blkdev_id(struct cbd_transport *cbdt, u32 *id)
 {
-	struct cbd_region_info __iomem *info = cbdr->region_info;
+	struct cbd_transport_info __iomem *info = cbdt->transport_info;
 	struct cbd_blkdev_info __iomem *blkdev_info;
 	int ret = 0;
 	int i;
 
-	mutex_lock(&cbdr->lock);
+	mutex_lock(&cbdt->lock);
 	for (i = 0; i < info->blkdev_num; i++) {
-		blkdev_info = __get_blkdev_info(cbdr, i);
+		blkdev_info = __get_blkdev_info(cbdt, i);
 		pr_err("inf: %p, i: %u", blkdev_info, i);
 		if (blkdev_info->state == CBD_BLKDEV_STATE_EMPTY) {
 			*id = i;
@@ -587,43 +583,43 @@ static inline int cbdr_get_empty_blkdev_id(struct cbd_region *cbdr, u32 *id)
 
 	ret = -ENOENT;
 out:
-	mutex_unlock(&cbdr->lock);
+	mutex_unlock(&cbdt->lock);
 
 	return ret;
 }
 
-static inline void *__get_backend_info(struct cbd_region *cbdr, u32 id)
+static inline void *__get_backend_info(struct cbd_transport *cbdt, u32 id)
 {
-	struct cbd_region_info *info = cbdr->region_info;
-	void *start = cbdr->region_info;
+	struct cbd_transport_info *info = cbdt->transport_info;
+	void *start = cbdt->transport_info;
 
 	return start + info->backend_area_off + (info->backend_info_size * id);
 }
 
-static inline void *cbdr_get_backend_info(struct cbd_region *cbdr, u32 id)
+static inline void *cbdt_get_backend_info(struct cbd_transport *cbdt, u32 id)
 {
-	struct cbd_region_info __iomem *info = cbdr->region_info;
-	void *start = cbdr->region_info;
+	struct cbd_transport_info __iomem *info = cbdt->transport_info;
+	void *start = cbdt->transport_info;
 	void *addr;
 
-	mutex_lock(&cbdr->lock);
-	addr = __get_backend_info(cbdr, id);
-	mutex_unlock(&cbdr->lock);
+	mutex_lock(&cbdt->lock);
+	addr = __get_backend_info(cbdt, id);
+	mutex_unlock(&cbdt->lock);
 
 	return addr;
 }
 
-static inline int cbdr_get_empty_bid(struct cbd_region *cbdr, u32 *id)
+static inline int cbdt_get_empty_bid(struct cbd_transport *cbdt, u32 *id)
 {
-	struct cbd_region_info __iomem *info = cbdr->region_info;
+	struct cbd_transport_info __iomem *info = cbdt->transport_info;
 	struct cbd_backend_info __iomem *backend_info;
 	uuid_t b_uuid;
 	int ret = 0;
 	int i;
 
-	mutex_lock(&cbdr->lock);
+	mutex_lock(&cbdt->lock);
 	for (i = 0; i < info->backend_num; i++) {
-		backend_info = __get_backend_info(cbdr, i);
+		backend_info = __get_backend_info(cbdt, i);
 		memcpy_fromio(&b_uuid, backend_info->owner, UUID_SIZE);
 		if (uuid_equal(&b_uuid, &uuid_null)) {
 			*id = i;
@@ -633,41 +629,41 @@ static inline int cbdr_get_empty_bid(struct cbd_region *cbdr, u32 *id)
 
 	ret = -ENOENT;
 out:
-	mutex_unlock(&cbdr->lock);
+	mutex_unlock(&cbdt->lock);
 
 	return ret;
 }
 
-static inline __iomem struct cbd_host_info *__get_host_info(struct cbd_region *cbdr, u32 id)
+static inline __iomem struct cbd_host_info *__get_host_info(struct cbd_transport *cbdt, u32 id)
 {
-	struct cbd_region_info *info = cbdr->region_info;
-	void __iomem *start = cbdr->region_info;
+	struct cbd_transport_info *info = cbdt->transport_info;
+	void __iomem *start = cbdt->transport_info;
 
 	return start + info->host_area_off + (info->host_info_size * id);
 }
 
-static inline struct cbd_host_info __iomem *cbdr_get_host_info(struct cbd_region *cbdr, u32 id)
+static inline struct cbd_host_info __iomem *cbdt_get_host_info(struct cbd_transport *cbdt, u32 id)
 {
 	struct cbd_host_info __iomem *host_info;
 
-	mutex_lock(&cbdr->lock);
-	host_info = __get_host_info(cbdr, id);
-	mutex_unlock(&cbdr->lock);
+	mutex_lock(&cbdt->lock);
+	host_info = __get_host_info(cbdt, id);
+	mutex_unlock(&cbdt->lock);
 
 	return host_info;
 }
 
-static inline int cbdr_get_empty_hid(struct cbd_region *cbdr, u32 *id)
+static inline int cbdt_get_empty_hid(struct cbd_transport *cbdt, u32 *id)
 {
-	struct cbd_region_info __iomem *info = cbdr->region_info;
+	struct cbd_transport_info __iomem *info = cbdt->transport_info;
 	struct cbd_host_info __iomem *host_info;
 	uuid_t uuid;
 	int ret = 0;
 	int i;
 
-	mutex_lock(&cbdr->lock);
+	mutex_lock(&cbdt->lock);
 	for (i = 0; i < readl(&info->host_num); i++) {
-		host_info = __get_host_info(cbdr, i);
+		host_info = __get_host_info(cbdt, i);
 		memcpy_fromio(&uuid, host_info->owner, UUID_SIZE);
 		if (uuid_equal(&uuid, &uuid_null)) {
 			*id = i;
@@ -677,7 +673,7 @@ static inline int cbdr_get_empty_hid(struct cbd_region *cbdr, u32 *id)
 
 	ret = -ENOENT;
 out:
-	mutex_unlock(&cbdr->lock);
+	mutex_unlock(&cbdt->lock);
 
 	return ret;
 }
@@ -1028,7 +1024,7 @@ void cbd_sysfs_exit(void);
 
 extern struct bus_type cbd_bus_type;
 extern struct device cbd_root_dev;
-extern struct device_type cbd_region_type;
+extern struct device_type cbd_transport_type;
 extern struct device_type cbd_host_type;
 
 int cbd_blkdev_init(void);
@@ -1056,28 +1052,28 @@ struct cbd_adm_options {
 	};
 };
 
-int cbd_region_format(struct cbd_region *cbdr, struct cbd_adm_options *opts);
-ssize_t cbd_region_info(struct cbd_region *cbdr, char *buf);
-int cbdr_validate(struct cbd_region *cbdr);
+int cbd_transport_format(struct cbd_transport *cbdt, struct cbd_adm_options *opts);
+ssize_t cbd_transport_info(struct cbd_transport *cbdt, char *buf);
+int cbdt_validate(struct cbd_transport *cbdt);
 
-int cbd_backend_start(struct cbd_region *cbdr, struct cbd_adm_options *opts);
-int cbd_backend_stop(struct cbd_region *cbdr, struct cbd_adm_options *opts);
-int cbd_backend_clear(struct cbd_region *cbdr, struct cbd_adm_options *opts);
-int cbd_backends_init(struct cbd_region *cbdr);
-int cbd_backends_exit(struct cbd_region *cbdr);
+int cbd_backend_start(struct cbd_transport *cbdt, struct cbd_adm_options *opts);
+int cbd_backend_stop(struct cbd_transport *cbdt, struct cbd_adm_options *opts);
+int cbd_backend_clear(struct cbd_transport *cbdt, struct cbd_adm_options *opts);
+int cbd_backends_init(struct cbd_transport *cbdt);
+int cbd_backends_exit(struct cbd_transport *cbdt);
 
-int cbd_blkdev_start(struct cbd_region *cbdr, struct cbd_adm_options *opts);
-int cbd_blkdev_stop(struct cbd_region *cbdr, struct cbd_adm_options *opts);
-int cbd_blkdevs_init(struct cbd_region *cbdr);
-int cbd_blkdevs_exit(struct cbd_region *cbdr);
+int cbd_blkdev_start(struct cbd_transport *cbdt, struct cbd_adm_options *opts);
+int cbd_blkdev_stop(struct cbd_transport *cbdt, struct cbd_adm_options *opts);
+int cbd_blkdevs_init(struct cbd_transport *cbdt);
+int cbd_blkdevs_exit(struct cbd_transport *cbdt);
 
-int cbd_host_register(struct cbd_region *cbdr, struct cbd_adm_options *opts);
-int cbd_host_unregister(struct cbd_region *cbdr, struct cbd_adm_options *opts);
-int cbd_hosts_init(struct cbd_region *cbdr);
-int cbd_hosts_exit(struct cbd_region *cbdr);
+int cbd_host_register(struct cbd_transport *cbdt, struct cbd_adm_options *opts);
+int cbd_host_unregister(struct cbd_transport *cbdt, struct cbd_adm_options *opts);
+int cbd_hosts_init(struct cbd_transport *cbdt);
+int cbd_hosts_exit(struct cbd_transport *cbdt);
 
-int cbd_channels_init(struct cbd_region *cbdr);
-int cbd_channels_exit(struct cbd_region *cbdr);
+int cbd_channels_init(struct cbd_transport *cbdt);
+int cbd_channels_exit(struct cbd_transport *cbdt);
 
 extern uuid_t cbd_uuid;
 extern struct workqueue_struct	*cbd_wq;

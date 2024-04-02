@@ -52,13 +52,13 @@ struct device_type cbd_channels_type = {
 	.release	= cbd_channel_release,
 };
 
-int cbd_channels_init(struct cbd_region *cbdr)
+int cbd_channels_init(struct cbd_transport *cbdt)
 {
 	struct cbd_channels_device *cbd_channels_dev;
 	struct cbd_channel_device *channel;
 	int i;
 
-	cbd_channels_dev = kzalloc(sizeof(struct cbd_channels_device) + cbdr->region_info->channel_num * sizeof(struct cbd_channel_device), GFP_KERNEL);
+	cbd_channels_dev = kzalloc(sizeof(struct cbd_channels_device) + cbdt->transport_info->channel_num * sizeof(struct cbd_channel_device), GFP_KERNEL);
 	if (!cbd_channels_dev) {
 		return -ENOMEM;
 	}
@@ -66,15 +66,15 @@ int cbd_channels_init(struct cbd_region *cbdr)
 	device_initialize(&cbd_channels_dev->channels_dev);
 	device_set_pm_not_required(&cbd_channels_dev->channels_dev);
 	dev_set_name(&cbd_channels_dev->channels_dev, "cbd_channels");
-	cbd_channels_dev->channels_dev.parent = &cbdr->device;
+	cbd_channels_dev->channels_dev.parent = &cbdt->device;
 	cbd_channels_dev->channels_dev.type = &cbd_channels_type;
 	device_add(&cbd_channels_dev->channels_dev);
 
-	for (i = 0; i < cbdr->region_info->channel_num; i++) {
+	for (i = 0; i < cbdt->transport_info->channel_num; i++) {
 		struct cbd_channel_device *channel = &cbd_channels_dev->channel_devs[i];
 		struct device *channel_dev = &channel->dev;
 
-		channel->channel_info = cbdr_get_channel_info(cbdr, i);
+		channel->channel_info = cbdt_get_channel_info(cbdt, i);
 		device_initialize(channel_dev);
 		device_set_pm_not_required(channel_dev);
 		dev_set_name(channel_dev, "channel%u", i);
@@ -83,20 +83,20 @@ int cbd_channels_init(struct cbd_region *cbdr)
 
 		device_add(channel_dev);
 	}
-	cbdr->cbd_channels_dev = cbd_channels_dev;
+	cbdt->cbd_channels_dev = cbd_channels_dev;
 
 	return 0;
 }
 
-int cbd_channels_exit(struct cbd_region *cbdr)
+int cbd_channels_exit(struct cbd_transport *cbdt)
 {
-	struct cbd_channels_device *cbd_channels_dev = cbdr->cbd_channels_dev;
+	struct cbd_channels_device *cbd_channels_dev = cbdt->cbd_channels_dev;
 	int i;
 
 	if (!cbd_channels_dev)
 		return 0;
 
-	for (i = 0; i < cbdr->region_info->channel_num; i++) {
+	for (i = 0; i < cbdt->transport_info->channel_num; i++) {
 		struct cbd_channel_device *channel = &cbd_channels_dev->channel_devs[i];
 		struct device *channel_dev = &channel->dev;
 
@@ -106,7 +106,7 @@ int cbd_channels_exit(struct cbd_region *cbdr)
 	device_del(&cbd_channels_dev->channels_dev);
 
 	kfree(cbd_channels_dev);
-	cbdr->cbd_channels_dev = NULL;
+	cbdt->cbd_channels_dev = NULL;
 
 	return 0;
 }

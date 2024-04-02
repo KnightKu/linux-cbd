@@ -74,13 +74,13 @@ struct device_type cbd_blkdevs_type = {
 	.release	= cbd_blkdev_release,
 };
 
-int cbd_blkdevs_init(struct cbd_region *cbdr)
+int cbd_blkdevs_init(struct cbd_transport *cbdt)
 {
 	struct cbd_blkdevs_device *cbd_blkdevs_dev;
 	struct cbd_blkdev_device *blkdev;
 	int i;
 
-	cbd_blkdevs_dev = kzalloc(sizeof(struct cbd_blkdevs_device) + cbdr->region_info->blkdev_num * sizeof(struct cbd_blkdev_device), GFP_KERNEL);
+	cbd_blkdevs_dev = kzalloc(sizeof(struct cbd_blkdevs_device) + cbdt->transport_info->blkdev_num * sizeof(struct cbd_blkdev_device), GFP_KERNEL);
 	if (!cbd_blkdevs_dev) {
 		return -ENOMEM;
 	}
@@ -88,15 +88,15 @@ int cbd_blkdevs_init(struct cbd_region *cbdr)
 	device_initialize(&cbd_blkdevs_dev->blkdevs_dev);
 	device_set_pm_not_required(&cbd_blkdevs_dev->blkdevs_dev);
 	dev_set_name(&cbd_blkdevs_dev->blkdevs_dev, "cbd_blkdevs");
-	cbd_blkdevs_dev->blkdevs_dev.parent = &cbdr->device;
+	cbd_blkdevs_dev->blkdevs_dev.parent = &cbdt->device;
 	cbd_blkdevs_dev->blkdevs_dev.type = &cbd_blkdevs_type;
 	device_add(&cbd_blkdevs_dev->blkdevs_dev);
 
-	for (i = 0; i < cbdr->region_info->blkdev_num; i++) {
+	for (i = 0; i < cbdt->transport_info->blkdev_num; i++) {
 		struct cbd_blkdev_device *blkdev = &cbd_blkdevs_dev->blkdev_devs[i];
 		struct device *blkdev_dev = &blkdev->dev;
 
-		blkdev->blkdev_info = cbdr_get_blkdev_info(cbdr, i);
+		blkdev->blkdev_info = cbdt_get_blkdev_info(cbdt, i);
 		device_initialize(blkdev_dev);
 		device_set_pm_not_required(blkdev_dev);
 		dev_set_name(blkdev_dev, "blkdev%u", i);
@@ -105,20 +105,20 @@ int cbd_blkdevs_init(struct cbd_region *cbdr)
 
 		device_add(blkdev_dev);
 	}
-	cbdr->cbd_blkdevs_dev = cbd_blkdevs_dev;
+	cbdt->cbd_blkdevs_dev = cbd_blkdevs_dev;
 
 	return 0;
 }
 
-int cbd_blkdevs_exit(struct cbd_region *cbdr)
+int cbd_blkdevs_exit(struct cbd_transport *cbdt)
 {
-	struct cbd_blkdevs_device *cbd_blkdevs_dev = cbdr->cbd_blkdevs_dev;
+	struct cbd_blkdevs_device *cbd_blkdevs_dev = cbdt->cbd_blkdevs_dev;
 	int i;
 
 	if (!cbd_blkdevs_dev)
 		return 0;
 
-	for (i = 0; i < cbdr->region_info->blkdev_num; i++) {
+	for (i = 0; i < cbdt->transport_info->blkdev_num; i++) {
 		struct cbd_blkdev_device *blkdev = &cbd_blkdevs_dev->blkdev_devs[i];
 		struct device *blkdev_dev = &blkdev->dev;
 
@@ -128,7 +128,7 @@ int cbd_blkdevs_exit(struct cbd_region *cbdr)
 	device_del(&cbd_blkdevs_dev->blkdevs_dev);
 
 	kfree(cbd_blkdevs_dev);
-	cbdr->cbd_blkdevs_dev = NULL;
+	cbdt->cbd_blkdevs_dev = NULL;
 
 	return 0;
 }
@@ -225,7 +225,7 @@ static int queue_req_prepare(struct cbd_request *cbd_req)
 	}
 
 	if (req_op(cbd_req->req) == REQ_OP_WRITE) {
-		copy_data_to_cbdreq(cbd_req);
+		copy_data_to_cbdteq(cbd_req);
 	}
 	*/
 
@@ -608,7 +608,7 @@ static struct cbd_request *fetch_inflight_req(struct cbd_queue *cbd_q, u64 req_t
 	return NULL;
 }
 
-static void copy_data_from_cbdreq(struct cbd_request *cbd_req)
+static void copy_data_from_cbdteq(struct cbd_request *cbd_req)
 {
 	struct bio_vec bv;
 	struct bvec_iter iter;
@@ -726,7 +726,7 @@ again:
 
 	if (true && req_op(cbd_req->req) == REQ_OP_READ) {
 		spin_lock(&cbd_q->channel.cmdr_lock);
-		copy_data_from_cbdreq(cbd_req);
+		copy_data_from_cbdteq(cbd_req);
 		spin_unlock(&cbd_q->channel.cmdr_lock);
 	}
 
@@ -959,12 +959,12 @@ struct device_type queue_type = {
 
 static int cbd_queue_create(struct cbd_queue *cbd_q)
 {
-	struct cbd_region *cbd_r = cbd_q->cbd_blkdev->cbd_r;
+	struct cbd_transport *cbd_r = cbd_q->cbd_blkdev->cbd_r;
 	int ret;
 	u32 channel_id;
 
-	pr_err("cbdr_get_empty_channel_id");
-	ret = cbdr_get_empty_channel_id(cbd_r, &channel_id);
+	pr_err("cbdt_get_empty_channel_id");
+	ret = cbdt_get_empty_channel_id(cbd_r, &channel_id);
 	if (ret < 0) {
 		pr_err("failed find empty channel_id.\n");
 		return ret;
@@ -973,7 +973,7 @@ static int cbd_queue_create(struct cbd_queue *cbd_q)
 	pr_err("channel_id: %u", channel_id);
 	cbd_q->channel_id = channel_id;
 	cbd_q->channel.channel_id = channel_id;
-	cbd_q->channel_info = cbdr_get_channel_info(cbd_r, channel_id);
+	cbd_q->channel_info = cbdt_get_channel_info(cbd_r, channel_id);
 	cbd_q->delay_max = msecs_to_jiffies(1000);
 	cbd_q->delay_min = usecs_to_jiffies(100);
 	cbd_q->delay_cur = cbd_q->delay_min;
@@ -1157,7 +1157,7 @@ err:
 	return ret;
 }
 
-int cbd_blkdev_start(struct cbd_region *cbdr, struct cbd_adm_options *opts)
+int cbd_blkdev_start(struct cbd_transport *cbdt, struct cbd_adm_options *opts)
 {
 	struct cbd_blkdev *cbd_blkdev;
 	int ret;
@@ -1168,7 +1168,7 @@ int cbd_blkdev_start(struct cbd_region *cbdr, struct cbd_adm_options *opts)
 		return -ENOMEM;
 	}
 
-	ret = cbdr_get_empty_blkdev_id(cbdr, &cbd_blkdev->blkdev_id);
+	ret = cbdt_get_empty_blkdev_id(cbdt, &cbd_blkdev->blkdev_id);
 	if (ret < 0) {
 		goto blkdev_free;
 	}
@@ -1185,11 +1185,11 @@ int cbd_blkdev_start(struct cbd_region *cbdr, struct cbd_adm_options *opts)
 
 	sprintf(cbd_blkdev->name, "cbd%d", cbd_blkdev->mapped_id);
 
-	cbd_blkdev->cbd_r = cbdr;
+	cbd_blkdev->cbd_r = cbdt;
 	cbd_blkdev->backend_id = opts->bid;
 	cbd_blkdev->num_queues = opts->blkdev.queues;
-	cbd_blkdev->blkdev_info = cbdr_get_blkdev_info(cbdr, cbd_blkdev->blkdev_id);
-	cbd_blkdev->blkdev_dev = &cbdr->cbd_blkdevs_dev->blkdev_devs[cbd_blkdev->blkdev_id];
+	cbd_blkdev->blkdev_info = cbdt_get_blkdev_info(cbdt, cbd_blkdev->blkdev_id);
+	cbd_blkdev->blkdev_dev = &cbdt->cbd_blkdevs_dev->blkdev_devs[cbd_blkdev->blkdev_id];
 
 	pr_err("blkdev_id: %u", cbd_blkdev->blkdev_id);
 
@@ -1228,7 +1228,7 @@ blkdev_free:
 	return ret;
 }
 
-int cbd_blkdev_stop(struct cbd_region *cbdr, struct cbd_adm_options *opts)
+int cbd_blkdev_stop(struct cbd_transport *cbdt, struct cbd_adm_options *opts)
 {
 	struct cbd_blkdev *cbd_blkdev, *next;
 	bool found = false;
