@@ -3,6 +3,7 @@
 #include <linux/module.h>
 #include <linux/blk-mq.h>
 #include <linux/fs.h>
+#include <linux/dax.h>
 #include <linux/blkdev.h>
 #include <linux/slab.h>
 #include <linux/parser.h>
@@ -402,6 +403,10 @@ struct cbd_host {
 	struct cbd_host_device *dev;
 	struct cbd_host_info __iomem *host_info;
 	struct delayed_work	hb_work; /* heartbeat work */
+};
+
+struct cbd_transport {
+	u16 id;
 };
 
 struct cbd_region {
@@ -1111,3 +1116,12 @@ void cbdc_copy_from_bio(struct cbd_channel *channel,
 		u32 data_off, u32 data_len, struct bio *bio);
 void cbdc_copy_to_bio(struct cbd_channel *channel,
 		u32 data_off, u32 data_len, struct bio *bio, void *verify_data);
+
+struct cbdt_register_options {
+	char hostname[CBD_NAME_LEN];
+	char path[CBD_PATH_LEN];
+	u16 force:1;
+	u16 unused:15;
+};
+
+int cbdt_register(struct cbdt_register_options *opts);

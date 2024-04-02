@@ -532,3 +532,68 @@ ssize_t cbd_region_info(struct cbd_region *cbdr, char *buf)
 
 	return ret;
 }
+
+
+
+static int
+famfs_blk_dax_notify_failure(
+	struct dax_device	*dax_devp,
+	u64			offset,
+	u64			len,
+	int			mf_flags)
+{
+
+	pr_err("%s: dax_devp %llx offset %llx len %lld mf_flags %x\n",
+	       __func__, (u64)dax_devp, (u64)offset, (u64)len, mf_flags);
+	return -EOPNOTSUPP;
+}
+
+const struct dax_holder_operations famfs_blk_dax_holder_ops = {
+	.notify_failure		= famfs_blk_dax_notify_failure,
+};
+
+int cbdt_register(struct cbdt_register_options *opts)
+{
+	struct dax_device *dax_dev = NULL;
+	u64 start_off = 0;
+	struct bdev_handle   *handlep = NULL;
+	struct cbd_transport *cbdt;
+
+	if (!strstr(opts->path, "/dev/pmem")) {
+		pr_err("%s: path (%s) is not pmem\n",
+		       __func__, opts->path);
+		return -EINVAL;
+	}
+
+	cbdt = kzalloc(sizeof(struct cbd_transport), GFP_KERNEL);
+	if (!cbdt) {
+		return -ENOMEM;
+	}
+
+	handlep = bdev_open_by_path(opts->path, BLK_OPEN_READ | BLK_OPEN_WRITE, cbdt, NULL);
+	if (IS_ERR(handlep->bdev)) {
+		kfree(cbdt);
+		pr_err("%s: failed blkdev_get_by_path(%s)\n", __func__, opts->path);
+		return PTR_ERR(handlep->bdev);
+	}
+
+	dax_dev = fs_dax_get_by_bdev(handlep->bdev, &start_off,
+				      cbdt,
+				      &famfs_blk_dax_holder_ops);
+	if (IS_ERR(dax_dev)) {
+		pr_err("%s: unable to get daxdev from handlep->bdev\n", __func__);
+		bdev_release(handlep);
+		kfree(cbdt);
+		return -ENODEV;
+	}
+
+	pr_err("start_off: %llu\n", start_off);
+
+	if (handlep)
+		bdev_release(handlep);
+	if (dax_dev)
+		fs_put_dax(dax_dev, cbdt);
+
+	kfree(cbdt);
+	return 0;
+}

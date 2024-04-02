@@ -27,6 +27,101 @@
 uuid_t cbd_uuid;
 struct workqueue_struct	*cbd_wq;
 
+enum {
+	CBDT_REG_OPT_ERR		= 0,
+	CBDT_REG_OPT_FORCE,
+	CBDT_REG_OPT_PATH,
+	CBDT_REG_OPT_HOSTNAME,
+};
+
+static const match_table_t register_opt_tokens = {
+	{ CBDT_REG_OPT_FORCE,		"force=%u" },
+	{ CBDT_REG_OPT_PATH,		"path=%s" },
+	{ CBDT_REG_OPT_HOSTNAME,	"hostname=%s" },
+	{ CBDT_REG_OPT_ERR,		NULL	}
+};
+
+static int parse_register_options(
+		char *buf,
+		struct cbdt_register_options *opts)
+{
+	substring_t args[MAX_OPT_ARGS];
+	char *o, *p;
+	int token, ret = 0;
+
+	o = buf;
+
+	while ((p = strsep(&o, ",\n")) != NULL) {
+		if (!*p)
+			continue;
+
+		pr_err("p: %s\n", p);
+		token = match_token(p, register_opt_tokens, args);
+		switch (token) {
+		case CBDT_REG_OPT_PATH:
+			if (match_strlcpy(opts->path, &args[0],
+			        CBD_PATH_LEN) == 0) {
+			        ret = -EINVAL;
+			        break;
+			}
+			break;
+		case CBDT_REG_OPT_FORCE:
+			if (match_uint(args, &token) || token != 1) {
+				ret = -EINVAL;
+				goto out;
+			}
+			opts->force = 1;
+			break;
+		case CBDT_REG_OPT_HOSTNAME:
+			if (match_strlcpy(opts->hostname, &args[0],
+			        CBD_NAME_LEN) == 0) {
+			        ret = -EINVAL;
+			        break;
+			}
+			break;
+		default:
+			pr_err("unknown parameter or missing value '%s'\n", p);
+			ret = -EINVAL;
+			goto out;
+		}
+	}
+
+out:
+	return ret;
+}
+
+static ssize_t add_transport_store(const struct bus_type *bus, const char *ubuf,
+				      size_t size)
+{
+	int ret;
+	char *buf;
+	struct cbdt_register_options opts = { 0 };
+
+	if (!capable(CAP_SYS_ADMIN))
+		return -EPERM;
+
+	pr_err("ubuf: %s\n", ubuf);
+
+	buf = kmemdup(ubuf, size + 1, GFP_KERNEL);
+	if (IS_ERR(buf)) {
+		pr_err("failed to dup buf for adm option: %d", (int)PTR_ERR(buf));
+		return PTR_ERR(buf);
+	}
+	buf[size] = '\0';
+	ret = parse_register_options(buf, &opts);
+	if (ret < 0) {
+		kfree(buf);
+		return ret;
+	}
+	kfree(buf);
+
+	ret = cbdt_register(&opts);
+	if (ret < 0)
+		return ret;
+
+	return size;
+}
+
 /* TODO support multi device feature */
 #define RBD_FEATURES_SUPPORTED	0x0ULL
 
@@ -40,10 +135,12 @@ static ssize_t uuid_show(const struct bus_type *bus, char *buf)
 	return sprintf(buf, "%pUB\n", &cbd_uuid);
 }
 
+static BUS_ATTR_WO(add_transport);
 static BUS_ATTR_RO(uuid);
 static BUS_ATTR_RO(supported_features);
 
 static struct attribute *cbd_bus_attrs[] = {
+	&bus_attr_add_transport.attr,
 	&bus_attr_supported_features.attr,
 	&bus_attr_uuid.attr,
 	NULL,
