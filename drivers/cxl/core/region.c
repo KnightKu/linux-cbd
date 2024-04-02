@@ -3058,26 +3058,10 @@ out:
 	}
 }
 
-void cxl_region_remove(struct device *dev)
-{
-	struct cxl_region *cxlr = to_cxl_region(dev);
-	int ret;
-
-	pr_err("region remove\n");
-	if (cxlr->cbd_region_id != -1) {
-		ret = cbd_region_destroy(cxlr->cbd_region_id);
-		if (ret) {
-			dev_dbg(&cxlr->dev, "failed to destroy cbd region: %d\n", ret);
-		} else {
-			cxlr->cbd_region_id = -1;
-		}
-	}
-}
 
 static struct cxl_driver cxl_region_driver = {
 	.name = "cxl_region",
 	.probe = cxl_region_probe,
-	.remove = cxl_region_remove,
 	.id = CXL_DEVICE_REGION,
 };
 
