@@ -361,6 +361,18 @@ int cbdt_unregister(u32 tid)
 	return 0;
 }
 
+static void channels_format(struct cbd_transport *cbdt)
+{
+	struct cbd_transport_info *info = cbdt->transport_info;
+	struct cbd_channel_info __iomem *channel_info;
+	int i;
+
+	for (i = 0; i < info->channel_num; i++) {
+		channel_info = __get_channel_info(cbdt, i);
+		memset(channel_info, 0, 4096);
+	}
+}
+
 int cbd_transport_format(struct cbd_transport *cbdt, struct cbd_adm_options *opts)
 {
 	struct cbd_transport_info *info = cbdt->transport_info;
@@ -394,13 +406,10 @@ int cbd_transport_format(struct cbd_transport *cbdt, struct cbd_adm_options *opt
 	writel(CBDT_CHANNEL_SIZE, &info->channel_size);
 	writel(CBDT_CHANNEL_NUM, &info->channel_num);
 
-	struct cbd_channel_info __iomem *channel_info;
-	int i;
-
-	for (i = 0; i < info->channel_num; i++) {
-		channel_info = __get_channel_info(cbdt, i);
-		memset(channel_info, 0, 4096);
-	}
+	//hosts_format(cbdt);
+	//backends_format(cbdt);
+	//blkdevs_format(cbdt);
+	channels_format(cbdt);
 
 	mutex_unlock(&cbdt->lock);
 
