@@ -613,9 +613,8 @@ static int cbd_backend_init(struct cbd_backend *cbd_b, struct cbd_adm_options *o
 
 	b_info = cbdt_get_backend_info(cbdt, cbd_b->bid);
 	cbd_b->backend_info = b_info;
-	pr_err("owner: %pUB", b_info->owner);
 
-	memcpy_toio(b_info->owner, &cbd_uuid, UUID_SIZE);
+	b_info->host_id = cbd_b->cbdt->host->host_id;
 
 	pr_err("open %s", cbd_b->path);
 	cbd_b->bdev_handle = bdev_open_by_path(cbd_b->path, BLK_OPEN_READ | BLK_OPEN_WRITE, cbd_b, NULL);
@@ -656,9 +655,7 @@ int cbd_backend_start(struct cbd_transport *cbdt, struct cbd_adm_options *opts)
 	}
 
 	backend_info = cbdt_get_backend_info(cbdt, bid);
-	memcpy_fromio(&b_uuid, backend_info->owner, UUID_SIZE);
-
-	if (!uuid_equal(&b_uuid, &uuid_null))
+	if (backend_info->host_id != U32_MAX)
 		return -EEXIST;
 
 	backend = kzalloc(sizeof(struct cbd_backend), GFP_KERNEL);
@@ -693,7 +690,7 @@ int cbd_backend_stop(struct cbd_transport *cbdt, struct cbd_adm_options *opts)
 	destroy_handlers(cbd_b);
 
 	backend_info = cbdt_get_backend_info(cbdt, cbd_b->bid);
-	memcpy_toio(backend_info->owner, &uuid_null, UUID_SIZE);
+	backend_info->host_id = U32_MAX;
 
 	drain_workqueue(cbd_b->task_wq);
 	destroy_workqueue(cbd_b->task_wq);
@@ -709,7 +706,7 @@ int cbd_backend_clear(struct cbd_transport *cbdt, struct cbd_adm_options *opts)
 	struct cbd_backend_info *backend_info;
 
 	backend_info = cbdt_get_backend_info(cbdt, opts->bid);
-	memcpy_toio(backend_info->owner, &uuid_null, UUID_SIZE);
+	backend_info->host_id = U32_MAX;
 
 	return 0;
 }

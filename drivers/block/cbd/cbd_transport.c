@@ -8,42 +8,6 @@
 static struct cbd_transport *cbd_transports[CBD_TRANSPORT_MAX];
 static DEFINE_IDA(cbd_transport_id_ida);
 
-static ssize_t cbd_backend_show(struct device *dev,
-			       struct device_attribute *attr,
-			       char *buf)
-{
-	struct cbd_transport *cbdt;
-	struct cbd_transport_info *info;
-	struct cbd_backend_info *backend_info;
-	uuid_t b_uuid;
-	char path[CBD_PATH_LEN];
-	int ret;
-	ssize_t len = 0;
-	int i;
-
-	cbdt = container_of(dev, struct cbd_transport, device);
-
-	ret = cbdt_validate(cbdt);
-	if (ret < 0) {
-		cbdt_err(cbdt, "not a valid cbd transport: %d", ret);
-		return ret;
-	}
-
-	info = cbdt->transport_info;
-
-	for (i = 0; i < readl(&info->backend_num); i++) {
-		backend_info = cbdt_get_backend_info(cbdt, i);
-		memcpy_fromio(&b_uuid, backend_info->owner, UUID_SIZE);
-		memcpy_fromio(&path, backend_info->path, UUID_SIZE);
-		len += sprintf(buf + len, "%u,owner: %pUB,path: %s\n", i, &b_uuid, path);
-	}
-
-	return len;
-}
-
-static DEVICE_ATTR(backend, 0400, cbd_backend_show, NULL);
-
-
 static ssize_t cbd_myhost_show(struct device *dev,
 			       struct device_attribute *attr,
 			       char *buf)
@@ -64,11 +28,10 @@ static ssize_t cbd_myhost_show(struct device *dev,
 	if (!host)
 		return 0;
 
-	return sprintf(buf, "%d\n", host->hostid);
+	return sprintf(buf, "%d\n", host->host_id);
 }
 
-
-static DEVICE_ATTR(my_hostid, 0400, cbd_myhost_show, NULL);
+static DEVICE_ATTR(my_host_id, 0400, cbd_myhost_show, NULL);
 
 enum {
 	CBDT_ADM_OPT_ERR		= 0,
@@ -301,10 +264,9 @@ static ssize_t cbd_info_show(struct device *dev,
 static DEVICE_ATTR(info, 0400, cbd_info_show, NULL);
 
 static struct attribute *cbd_transport_attrs[] = {
-	&dev_attr_backend.attr,
 	&dev_attr_adm.attr,
 	&dev_attr_info.attr,
-	&dev_attr_my_hostid.attr,
+	&dev_attr_my_host_id.attr,
 	NULL
 };
 

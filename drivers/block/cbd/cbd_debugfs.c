@@ -178,7 +178,7 @@ void cbd_debugfs_cleanup(void)
 	cbd_debugfs_remove(&cbd_debugfs_root);
 }
 
-void __init cbd_debugfs_init(void)
+int cbd_debugfs_init(void)
 {
 	struct dentry *dentry;
 
@@ -187,4 +187,6 @@ void __init cbd_debugfs_init(void)
 
 	dentry = debugfs_create_dir("devices", cbd_debugfs_root);
 	cbd_debugfs_devices = dentry;
+
+	return 0;
 }

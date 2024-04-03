@@ -152,7 +152,6 @@ struct cbd_transport_info {
 
 
 struct cbd_channel_info {
-	__u8 owner[UUID_SIZE];
 	__le64	alive_ts;
 
 	__le32	blkdev;
@@ -223,7 +222,6 @@ struct cbd_channel {
 };
 
 struct cbd_host_info {
-	__u8	owner[UUID_SIZE];
 	__le64	alive_ts;
 	__u8	hostname[CBD_NAME_LEN];
 };
@@ -233,7 +231,7 @@ struct cbd_host_info {
 #define CBDB_CHANNEL_ID_MASK		GENMASK(11, 0)
 
 struct cbd_backend_info {
-	__u8	owner[UUID_SIZE];
+	__le32	host_id;
 	__le64	alive_ts;
 	__u8	path[CBD_PATH_LEN];
 	__le32	channels[CBDB_CHANNEL_NUM];
@@ -398,7 +396,7 @@ static struct cbd_blkdev {
 };
 
 struct cbd_host {
-	u32	hostid;
+	u32	host_id;
 	struct cbd_transport *transport;
 	struct cbd_host_device *dev;
 	struct cbd_host_info __iomem *host_info;
@@ -614,15 +612,13 @@ static inline int cbdt_get_empty_bid(struct cbd_transport *cbdt, u32 *id)
 {
 	struct cbd_transport_info __iomem *info = cbdt->transport_info;
 	struct cbd_backend_info __iomem *backend_info;
-	uuid_t b_uuid;
 	int ret = 0;
 	int i;
 
 	mutex_lock(&cbdt->lock);
 	for (i = 0; i < info->backend_num; i++) {
 		backend_info = __get_backend_info(cbdt, i);
-		memcpy_fromio(&b_uuid, backend_info->owner, UUID_SIZE);
-		if (uuid_equal(&b_uuid, &uuid_null)) {
+		if (backend_info->host_id == U32_MAX) {
 			*id = i;
 			goto out;
 		}
@@ -665,8 +661,7 @@ static inline int cbdt_get_empty_hid(struct cbd_transport *cbdt, u32 *id)
 	mutex_lock(&cbdt->lock);
 	for (i = 0; i < readl(&info->host_num); i++) {
 		host_info = __get_host_info(cbdt, i);
-		memcpy_fromio(&uuid, host_info->owner, UUID_SIZE);
-		if (uuid_equal(&uuid, &uuid_null)) {
+		if (strlen(host_info->hostname) == 0) {
 			*id = i;
 			goto out;
 		}
@@ -1090,8 +1085,8 @@ do {								\
 	ret = device_add(DEV);					\
 } while (0)
 
+int cbd_debugfs_init(void);
 void cbd_debugfs_cleanup(void);
-void __init cbd_debugfs_init(void);
 
 void cbd_debugfs_add_dev(struct cbd_blkdev *cbd_dev);
 void cbd_debugfs_remove_dev(struct cbd_blkdev *cbd_dev);
