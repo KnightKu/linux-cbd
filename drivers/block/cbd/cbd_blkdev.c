@@ -1177,7 +1177,7 @@ err:
 	return ret;
 }
 
-int cbd_blkdev_start(struct cbd_transport *cbdt, struct cbd_adm_options *opts)
+int cbd_blkdev_start(struct cbd_transport *cbdt, u32 backend_id, u32 queues)
 {
 	struct cbd_blkdev *cbd_blkdev;
 	int ret;
@@ -1206,8 +1206,8 @@ int cbd_blkdev_start(struct cbd_transport *cbdt, struct cbd_adm_options *opts)
 	sprintf(cbd_blkdev->name, "cbd%d", cbd_blkdev->mapped_id);
 
 	cbd_blkdev->cbd_r = cbdt;
-	cbd_blkdev->backend_id = opts->backend_id;
-	cbd_blkdev->num_queues = opts->blkdev.queues;
+	cbd_blkdev->backend_id = backend_id;
+	cbd_blkdev->num_queues = queues;
 	cbd_blkdev->blkdev_info = cbdt_get_blkdev_info(cbdt, cbd_blkdev->blkdev_id);
 	cbd_blkdev->blkdev_dev = &cbdt->cbd_blkdevs_dev->blkdev_devs[cbd_blkdev->blkdev_id];
 
@@ -1248,14 +1248,14 @@ blkdev_free:
 	return ret;
 }
 
-int cbd_blkdev_stop(struct cbd_transport *cbdt, struct cbd_adm_options *opts)
+int cbd_blkdev_stop(struct cbd_transport *cbdt, u32 devid)
 {
 	struct cbd_blkdev *cbd_blkdev, *next;
 	bool found = false;
 
 	spin_lock(&cbd_dev_list_lock);
 	list_for_each_entry_safe(cbd_blkdev, next, &cbd_dev_list, node) {
-		if (cbd_blkdev->mapped_id == opts->blkdev.devid) {
+		if (cbd_blkdev->mapped_id == devid) {
 			list_del(&cbd_blkdev->node);
 			found = true;
 			break;

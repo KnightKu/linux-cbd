@@ -619,8 +619,8 @@ int cbd_backend_clear(struct cbd_transport *cbdt, u32 backend_id);
 int cbd_backends_init(struct cbd_transport *cbdt);
 int cbd_backends_exit(struct cbd_transport *cbdt);
 
-int cbd_blkdev_start(struct cbd_transport *cbdt, struct cbd_adm_options *opts);
-int cbd_blkdev_stop(struct cbd_transport *cbdt, struct cbd_adm_options *opts);
+int cbd_blkdev_start(struct cbd_transport *cbdt, u32 backend_id, u32 queues);
+int cbd_blkdev_stop(struct cbd_transport *cbdt, u32 devid);
 int cbd_blkdevs_init(struct cbd_transport *cbdt);
 int cbd_blkdevs_exit(struct cbd_transport *cbdt);
 
