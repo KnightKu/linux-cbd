@@ -196,10 +196,6 @@ struct cbd_host_info {
 	__u8	hostname[CBD_NAME_LEN];
 };
 
-#define CBDB_CHANNEL_NUM		128
-#define CBDB_CHANNEL_STATE_MASK		GENMASK(31, 28)
-#define CBDB_CHANNEL_ID_MASK		GENMASK(11, 0)
-
 enum cbd_backend_status {
 	cbd_backend_status_none	= 0,
 	cbd_backend_status_running,
@@ -210,7 +206,6 @@ struct cbd_backend_info {
 	__le32	host_id;
 	__le64	alive_ts;
 	__u8	path[CBD_PATH_LEN];
-	__le32	channels[CBDB_CHANNEL_NUM];
 };
 
 struct cbd_backend_handler {
@@ -255,52 +250,6 @@ struct cbd_backend {
 
 	struct cbd_backend_device *backend_device;
 };
-
-static inline u8 cbdb_get_channel_state(struct cbd_backend_info *backend_info,
-		u32 index)
-{
-	u32 channel_val;
-
-	channel_val = backend_info->channels[index];
-
-	return FIELD_GET(CBDB_CHANNEL_STATE_MASK, channel_val);
-}
-
-static inline void cbdb_set_channel_state(struct cbd_backend_info *backend_info,
-		u32 index, u8 channel_state)
-{
-	u32 channel_val;
-
-	channel_val = backend_info->channels[index];
-
-	channel_val &= ~CBDB_CHANNEL_STATE_MASK;
-	channel_val |= FIELD_PREP(CBDB_CHANNEL_STATE_MASK, channel_state);
-
-	backend_info->channels[index] = channel_val;
-}
-
-static inline u32 cbdb_get_channel_id(struct cbd_backend_info *backend_info,
-		u32 index)
-{
-	u32 channel_val;
-
-	channel_val = backend_info->channels[index];
-
-	return FIELD_GET(CBDB_CHANNEL_ID_MASK, channel_val);
-}
-
-static inline void cbdb_set_channel_id(struct cbd_backend_info *backend_info,
-		u32 index, u32 channel_id)
-{
-	u32 channel_val;
-
-	channel_val = backend_info->channels[index];
-
-	channel_val &= ~CBDB_CHANNEL_ID_MASK;
-	channel_val |= FIELD_PREP(CBDB_CHANNEL_ID_MASK, channel_id);
-
-	backend_info->channels[index] = channel_val;
-}
 
 #define CBD_BLKDEV_STATE_EMPTY		0
 #define CBD_BLKDEV_STATE_RUNNING	1
@@ -429,8 +378,6 @@ out:
 	mutex_unlock(&cbdt->lock);
 	return dev;
 }
-
-
 
 #define CBD_GETTER_AND_SETTER(OBJ, VAR, KEY, MASK)					\
 static inline u32 cbd_ ## OBJ ## _get_## VAR ##_## KEY (					\
