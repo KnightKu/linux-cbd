@@ -371,7 +371,7 @@ int cbdt_unregister(u32 tid)
 static void channels_format(struct cbd_transport *cbdt)
 {
 	struct cbd_transport_info *info = cbdt->transport_info;
-	struct cbd_channel_info __iomem *channel_info;
+	struct cbd_channel_info *channel_info;
 	int i;
 
 	for (i = 0; i < info->channel_num; i++) {
@@ -571,17 +571,17 @@ int cbdt_register(struct cbdt_register_options *opts)
 	return 0;
 }
 
-static inline __iomem struct cbd_host_info *__get_host_info(struct cbd_transport *cbdt, u32 id)
+static inline struct cbd_host_info *__get_host_info(struct cbd_transport *cbdt, u32 id)
 {
 	struct cbd_transport_info *info = cbdt->transport_info;
-	void __iomem *start = cbdt->transport_info;
+	void *start = cbdt->transport_info;
 
 	return start + info->host_area_off + (info->host_info_size * id);
 }
 
-struct cbd_host_info __iomem *cbdt_get_host_info(struct cbd_transport *cbdt, u32 id)
+struct cbd_host_info *cbdt_get_host_info(struct cbd_transport *cbdt, u32 id)
 {
-	struct cbd_host_info __iomem *host_info;
+	struct cbd_host_info *host_info;
 
 	mutex_lock(&cbdt->lock);
 	host_info = __get_host_info(cbdt, id);
@@ -592,8 +592,8 @@ struct cbd_host_info __iomem *cbdt_get_host_info(struct cbd_transport *cbdt, u32
 
 int cbdt_get_empty_hid(struct cbd_transport *cbdt, u32 *id)
 {
-	struct cbd_transport_info __iomem *info = cbdt->transport_info;
-	struct cbd_host_info __iomem *host_info;
+	struct cbd_transport_info *info = cbdt->transport_info;
+	struct cbd_host_info *host_info;
 	uuid_t uuid;
 	int ret = 0;
 	int i;

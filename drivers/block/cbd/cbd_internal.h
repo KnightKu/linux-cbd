@@ -183,7 +183,7 @@ enum cbdc_backend_state {
 #define CBD_DEVICE(OBJ)					\
 static struct cbd_## OBJ ##_device {					\
 	struct device dev;				\
-	struct cbd_## OBJ ##_info __iomem *OBJ##_info;	\
+	struct cbd_## OBJ ##_info *OBJ##_info;	\
 };							\
 							\
 static struct cbd_## OBJ ##s_device {			\
@@ -200,11 +200,11 @@ struct cbd_channel {
 	struct cbd_queue *cbd_q;
 	u32	channel_id;
 	struct cbd_channel_deivce *dev;
-	struct cbd_channel_info __iomem *channel_info;
+	struct cbd_channel_info *channel_info;
 
-	void __iomem *cmdr;
-	void __iomem *compr;
-	void __iomem *data;
+	void *cmdr;
+	void *compr;
+	void *data;
 
 	u32			data_size;
 	u32			data_head;
@@ -253,7 +253,7 @@ enum cbdb_channel_state {
 struct cbd_backend_handler {
 	u32 channel_id;
 	struct cbd_backend *cbd_b;
-	struct cbd_channel_info __iomem *channel_info;
+	struct cbd_channel_info *channel_info;
 
 	struct cbd_channel	channel;
 
@@ -278,7 +278,7 @@ struct cbd_backend {
 	u32 bid;
 	char path[CBD_PATH_LEN];
 	struct cbd_transport *cbdt;
-	struct cbd_backend_info __iomem *backend_info;
+	struct cbd_backend_info *backend_info;
 	struct mutex lock;
 
 	struct block_device	*bdev;
@@ -293,7 +293,7 @@ struct cbd_backend {
 	struct cbd_backend_device *backend_device;
 };
 
-static inline u8 cbdb_get_channel_state(struct cbd_backend_info __iomem *backend_info,
+static inline u8 cbdb_get_channel_state(struct cbd_backend_info *backend_info,
 		u32 index)
 {
 	u32 channel_val;
@@ -303,7 +303,7 @@ static inline u8 cbdb_get_channel_state(struct cbd_backend_info __iomem *backend
 	return FIELD_GET(CBDB_CHANNEL_STATE_MASK, channel_val);
 }
 
-static inline void cbdb_set_channel_state(struct cbd_backend_info __iomem *backend_info,
+static inline void cbdb_set_channel_state(struct cbd_backend_info *backend_info,
 		u32 index, u8 channel_state)
 {
 	u32 channel_val;
@@ -316,7 +316,7 @@ static inline void cbdb_set_channel_state(struct cbd_backend_info __iomem *backe
 	writel(channel_val, &backend_info->channels[index]);
 }
 
-static inline u32 cbdb_get_channel_id(struct cbd_backend_info __iomem *backend_info,
+static inline u32 cbdb_get_channel_id(struct cbd_backend_info *backend_info,
 		u32 index)
 {
 	u32 channel_val;
@@ -326,7 +326,7 @@ static inline u32 cbdb_get_channel_id(struct cbd_backend_info __iomem *backend_i
 	return FIELD_GET(CBDB_CHANNEL_ID_MASK, channel_val);
 }
 
-static inline void cbdb_set_channel_id(struct cbd_backend_info __iomem *backend_info,
+static inline void cbdb_set_channel_id(struct cbd_backend_info *backend_info,
 		u32 index, u32 channel_id)
 {
 	u32 channel_val;
@@ -390,7 +390,7 @@ static struct cbd_blkdev {
 	void			*data;
 
 	struct cbd_blkdev_device *blkdev_dev;
-	struct cbd_blkdev_info __iomem *blkdev_info;
+	struct cbd_blkdev_info *blkdev_info;
 
 	struct cbd_transport *cbd_r;
 
@@ -402,7 +402,7 @@ struct cbd_host {
 	u32	host_id;
 	struct cbd_transport *transport;
 	struct cbd_host_device *dev;
-	struct cbd_host_info __iomem *host_info;
+	struct cbd_host_info *host_info;
 	struct delayed_work	hb_work; /* heartbeat work */
 };
 
@@ -411,7 +411,7 @@ struct cbd_transport {
 	struct device device;
 	struct mutex lock;
 
-	struct cbd_transport_info __iomem *transport_info;
+	struct cbd_transport_info *transport_info;
 
 	struct list_head backends;
 	struct list_head devices;
@@ -471,7 +471,7 @@ out:
 
 #define CBD_GETTER_AND_SETTER(OBJ, VAR, KEY, MASK)					\
 static inline u32 cbd_ ## OBJ ## _get_## VAR ##_## KEY (					\
-		struct cbd_## OBJ ##_info __iomem *info)			\
+		struct cbd_## OBJ ##_info *info)			\
 {											\
 	u32 val;									\
 											\
@@ -481,7 +481,7 @@ static inline u32 cbd_ ## OBJ ## _get_## VAR ##_## KEY (					\
 }											\
 										\
 static inline void cbd_ ## OBJ ## _set_ ## VAR ##_## KEY (					\
-		struct cbd_## OBJ ##_info __iomem *info,	\
+		struct cbd_## OBJ ##_info *info,	\
 		u32 v)						\
 {										\
 	u32 val;								\
@@ -500,17 +500,17 @@ CBD_GETTER_AND_SETTER(channel, backend, state, CBDC_BACKEND_STATE_MASK);
 CBD_GETTER_AND_SETTER(channel, backend, id, CBDC_BACKEND_ID_MASK);
 
 
-static inline void __iomem *__get_channel_info(struct cbd_transport *cbdt, u32 id)
+static inline void *__get_channel_info(struct cbd_transport *cbdt, u32 id)
 {
 	struct cbd_transport_info *info = cbdt->transport_info;
-	void __iomem *start = cbdt->transport_info;
+	void *start = cbdt->transport_info;
 
 	return (start + info->channel_area_off + (info->channel_size * id));
 }
 
-static inline void __iomem *cbdt_get_channel_info(struct cbd_transport *cbdt, u32 id)
+static inline void *cbdt_get_channel_info(struct cbd_transport *cbdt, u32 id)
 {
-	void __iomem *addr;
+	void *addr;
 
 	mutex_lock(&cbdt->lock);
 	addr = __get_channel_info(cbdt, id);
@@ -521,8 +521,8 @@ static inline void __iomem *cbdt_get_channel_info(struct cbd_transport *cbdt, u3
 
 static inline int cbdt_get_empty_channel_id(struct cbd_transport *cbdt, u32 *id)
 {
-	struct cbd_transport_info __iomem *info = cbdt->transport_info;
-	struct cbd_channel_info __iomem *channel_info;
+	struct cbd_transport_info *info = cbdt->transport_info;
+	struct cbd_channel_info *channel_info;
 	int ret = 0;
 	int i;
 
@@ -545,19 +545,19 @@ out:
 	return ret;
 }
 
-static inline void __iomem *__get_blkdev_info(struct cbd_transport *cbdt, u32 id)
+static inline void *__get_blkdev_info(struct cbd_transport *cbdt, u32 id)
 {
 	struct cbd_transport_info *info = cbdt->transport_info;
-	void __iomem *start = cbdt->transport_info;
+	void *start = cbdt->transport_info;
 
 	return start + info->blkdev_area_off + (info->blkdev_info_size * id);
 }
 
-static inline void __iomem *cbdt_get_blkdev_info(struct cbd_transport *cbdt, u32 id)
+static inline void *cbdt_get_blkdev_info(struct cbd_transport *cbdt, u32 id)
 {
-	struct cbd_transport_info __iomem *info = cbdt->transport_info;
-	void __iomem *start = cbdt->transport_info;
-	void __iomem *addr;
+	struct cbd_transport_info *info = cbdt->transport_info;
+	void *start = cbdt->transport_info;
+	void *addr;
 
 	mutex_lock(&cbdt->lock);
 	addr = __get_blkdev_info(cbdt, id);
@@ -568,8 +568,8 @@ static inline void __iomem *cbdt_get_blkdev_info(struct cbd_transport *cbdt, u32
 
 static inline int cbdt_get_empty_blkdev_id(struct cbd_transport *cbdt, u32 *id)
 {
-	struct cbd_transport_info __iomem *info = cbdt->transport_info;
-	struct cbd_blkdev_info __iomem *blkdev_info;
+	struct cbd_transport_info *info = cbdt->transport_info;
+	struct cbd_blkdev_info *blkdev_info;
 	int ret = 0;
 	int i;
 
@@ -600,7 +600,7 @@ static inline void *__get_backend_info(struct cbd_transport *cbdt, u32 id)
 
 static inline void *cbdt_get_backend_info(struct cbd_transport *cbdt, u32 id)
 {
-	struct cbd_transport_info __iomem *info = cbdt->transport_info;
+	struct cbd_transport_info *info = cbdt->transport_info;
 	void *start = cbdt->transport_info;
 	void *addr;
 
@@ -613,8 +613,8 @@ static inline void *cbdt_get_backend_info(struct cbd_transport *cbdt, u32 id)
 
 static inline int cbdt_get_empty_bid(struct cbd_transport *cbdt, u32 *id)
 {
-	struct cbd_transport_info __iomem *info = cbdt->transport_info;
-	struct cbd_backend_info __iomem *backend_info;
+	struct cbd_transport_info *info = cbdt->transport_info;
+	struct cbd_backend_info *backend_info;
 	int ret = 0;
 	int i;
 
@@ -635,7 +635,7 @@ out:
 }
 
 
-struct cbd_host_info __iomem *cbdt_get_host_info(struct cbd_transport *cbdt, u32 id);
+struct cbd_host_info *cbdt_get_host_info(struct cbd_transport *cbdt, u32 id);
 int cbdt_get_empty_hid(struct cbd_transport *cbdt, u32 *id);
 
 /*

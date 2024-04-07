@@ -16,7 +16,7 @@ static ssize_t blkdev_mapped_id_show(struct device *dev,
 	blkdev = container_of(dev, struct cbd_blkdev_device, dev);
 	blkdev_info = blkdev->blkdev_info;
 
-	return sprintf(buf, "%u\n", readl(&blkdev_info->mapped_id));
+	return sprintf(buf, "%u\n", blkdev_info->mapped_id);
 }
 
 static DEVICE_ATTR(mapped_id, 0400, blkdev_mapped_id_show, NULL);
@@ -812,7 +812,7 @@ static void cbd_queue_destroy(struct cbd_queue *cbd_q)
 	return;
 }
 
-static int wait_for_backend_running(struct cbd_channel_info __iomem *channel_info)
+static int wait_for_backend_running(struct cbd_channel_info *channel_info)
 {
 	u32 backend_state;
 	int i;

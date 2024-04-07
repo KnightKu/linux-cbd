@@ -547,7 +547,7 @@ void state_work_fn(struct work_struct *work)
 {
 	struct cbd_backend *cbd_b = container_of(work, struct cbd_backend, state_work.work);
 	struct cbd_transport *cbd_r = cbd_b->cbdt;
-	struct cbd_channel_info __iomem *channel_info;
+	struct cbd_channel_info *channel_info;
 	u32 blkdev_state, backend_state, backend_id;
 	int i;
 
