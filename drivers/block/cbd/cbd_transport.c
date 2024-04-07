@@ -16,6 +16,40 @@
 static struct cbd_transport *cbd_transports[CBD_TRANSPORT_MAX];
 static DEFINE_IDA(cbd_transport_id_ida);
 
+static int cbdt_validate(struct cbd_transport *cbdt)
+{
+	struct cbd_transport_info *info = cbdt->transport_info;
+	u64 magic;
+	u16 flags;
+	int ret = 0;
+
+	mutex_lock(&cbdt->lock);
+	info = cbdt->transport_info;
+
+	if (info->magic != CBD_TRANSPORT_MAGIC) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	flags = le16_to_cpu(info->flags);
+#if defined(__BYTE_ORDER) ? __BYTE_ORDER == __GIT_ENDIAN : defined(__BIG_ENDIAN)
+	if (!(flags & CBDT_INFO_F_BIGENDIAN)) {
+		ret = -EINVAL;
+		goto out;
+	}
+#else
+	if ((flags & CBDT_INFO_F_BIGENDIAN)) {
+		ret = -EINVAL;
+		goto out;
+	}
+#endif
+out:
+	mutex_unlock(&cbdt->lock);
+
+	return ret;
+}
+
+
 static ssize_t cbd_myhost_show(struct device *dev,
 			       struct device_attribute *attr,
 			       char *buf)
@@ -598,40 +632,6 @@ int cbd_transport_format(struct cbd_transport *cbdt, struct cbd_adm_options *opt
 	mutex_unlock(&cbdt->lock);
 
 	return 0;
-}
-
-int cbdt_validate(struct cbd_transport *cbdt)
-{
-	struct cbd_transport_info *info = cbdt->transport_info;
-	u64 magic;
-	u16 flags;
-	int ret = 0;
-
-	mutex_lock(&cbdt->lock);
-	info = cbdt->transport_info;
-
-	if (info->magic != CBD_TRANSPORT_MAGIC) {
-		ret = -EINVAL;
-		goto out;
-	}
-
-	flags = le16_to_cpu(info->flags);
-#if defined(__BYTE_ORDER) ? __BYTE_ORDER == __GIT_ENDIAN : defined(__BIG_ENDIAN)
-	if (!(flags & CBDT_INFO_F_BIGENDIAN)) {
-		ret = -EINVAL;
-		goto out;
-	}
-#else
-	if ((flags & CBDT_INFO_F_BIGENDIAN)) {
-		ret = -EINVAL;
-		goto out;
-	}
-#endif
-
-out:
-	mutex_unlock(&cbdt->lock);
-
-	return ret;
 }
 
 ssize_t cbd_transport_info(struct cbd_transport *cbdt, char *buf)
