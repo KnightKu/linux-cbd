@@ -241,7 +241,13 @@ struct cbd_host_info {
 #define CBDB_CHANNEL_STATE_MASK		GENMASK(31, 28)
 #define CBDB_CHANNEL_ID_MASK		GENMASK(11, 0)
 
+enum cbd_backend_status {
+	cbd_backend_status_none	= 0,
+	cbd_backend_status_running,
+};
+
 struct cbd_backend_info {
+	u8	status;
 	__le32	host_id;
 	__le64	alive_ts;
 	__u8	path[CBD_PATH_LEN];
@@ -629,7 +635,7 @@ static inline int cbdt_get_empty_bid(struct cbd_transport *cbdt, u32 *id)
 	mutex_lock(&cbdt->lock);
 	for (i = 0; i < info->backend_num; i++) {
 		backend_info = __get_backend_info(cbdt, i);
-		if (backend_info->host_id == U32_MAX) {
+		if (backend_info->status == cbd_backend_status_none) {
 			*id = i;
 			goto out;
 		}

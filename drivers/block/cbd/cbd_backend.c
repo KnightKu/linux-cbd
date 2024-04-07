@@ -654,8 +654,11 @@ int cbd_backend_start(struct cbd_transport *cbdt, struct cbd_adm_options *opts)
 	}
 
 	backend_info = cbdt_get_backend_info(cbdt, bid);
-	if (backend_info->host_id != U32_MAX)
+
+	if (backend_info->status != cbd_backend_status_none)
 		return -EEXIST;
+
+	backend_info->status = cbd_backend_status_running;
 
 	backend = kzalloc(sizeof(struct cbd_backend), GFP_KERNEL);
 	if (!backend) {
@@ -690,6 +693,7 @@ int cbd_backend_stop(struct cbd_transport *cbdt, struct cbd_adm_options *opts)
 
 	backend_info = cbdt_get_backend_info(cbdt, cbd_b->bid);
 	backend_info->host_id = U32_MAX;
+	backend_info->status = cbd_backend_status_none;
 
 	drain_workqueue(cbd_b->task_wq);
 	destroy_workqueue(cbd_b->task_wq);
