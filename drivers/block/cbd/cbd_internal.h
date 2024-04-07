@@ -39,9 +39,9 @@
  */
 
 /* cbd channel */
-#define ALIGN_SIZE sizeof(__le64)
+#define CBD_OP_ALIGN_SIZE sizeof(__le64)
 #define CBDC_META_SIZE (1024 * 4096)
-#define CBDC_CMDR_RESERVED ALIGN_SIZE
+#define CBDC_CMDR_RESERVED CBD_OP_ALIGN_SIZE
 #define CBDC_CMPR_RESERVED sizeof(struct cbd_ce)
 /* Offset of cmd ring is size of sb */
 
@@ -54,8 +54,6 @@
 
 #define CBDC_DATA_OFF (CBDC_CMDR_OFF + CBDC_CMDR_SIZE)
 #define CBDC_DATA_SIZE (16 * 1024 * 1024)
-
-#define CBD_OP_ALIGN_SIZE ALIGN_SIZE
 
 #define CBDC_UPDATE_CMDR_HEAD(head, used, size) smp_store_release(&head, ((head % size) + used) % size)
 #define CBDC_UPDATE_CMDR_TAIL(tail, used, size) smp_store_release(&tail, ((tail % size) + used) % size)
@@ -80,7 +78,7 @@
 
 #define CBDT_BLKDEV_AREA_OFF		(CBDT_BACKEND_AREA_OFF + (CBDT_BACKEND_INFO_SIZE * CBDT_BACKEND_NUM))
 #define CBDT_BLKDEV_INFO_SIZE		4096
-#define CBDT_BLKDEV_NUM			32
+#define CBDT_BLKDEV_NUM			16
 
 #define CBDT_CHANNEL_AREA_OFF		(CBDT_BLKDEV_AREA_OFF + (CBDT_BLKDEV_INFO_SIZE * CBDT_BLKDEV_NUM))
 #define CBDT_CHANNEL_SIZE		(CBDC_META_SIZE + CBDC_DATA_SIZE)
