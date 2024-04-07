@@ -2,7 +2,55 @@
 #include <linux/io.h>
 #include <linux/delay.h>
 
-static struct cbd_queue *global_cbd_q;
+#define cbd_blk_err(dev, fmt, ...)					\
+	cbd_err("cbd%d: " fmt,					\
+		 dev->mapped_id, ##__VA_ARGS__)
+
+#define cbd_blk_info(dev, fmt, ...)					\
+	cbd_info("cbd%d: " fmt,					\
+		 dev->mapped_id, ##__VA_ARGS__)
+
+#define cbd_blk_debug(dev, fmt, ...)					\
+	cbd_debug("cbd%d: " fmt,					\
+		 dev->mapped_id, ##__VA_ARGS__)
+
+#define cbd_queue_err(queue, fmt, ...)					\
+	cbd_blk_err(queue->cbd_blkdev, "queue-%d: " fmt,			\
+		     queue->index, ##__VA_ARGS__)
+
+#define cbd_queue_info(queue, fmt, ...)					\
+	cbd_blk_info(queue->cbd_blkdev, "queue-%d: " fmt,			\
+		     queue->index, ##__VA_ARGS__)
+
+#define cbd_queue_debug(queue, fmt, ...)				\
+	cbd_blk_debug(queue->cbd_blkdev, "queue-%d: " fmt,			\
+		     queue->index, ##__VA_ARGS__)
+
+static inline struct cbd_se *get_submit_entry(struct cbd_queue *cbd_q)
+{
+	struct cbd_se *se;
+
+	se = (struct cbd_se *)(cbd_q->channel.cmdr + cbd_q->channel_info->cmd_head);
+
+	return se;
+}
+
+static inline struct cbd_se *get_oldest_se(struct cbd_queue *cbd_q)
+{
+	if (cbd_q->channel_info->cmd_tail == cbd_q->channel_info->cmd_head)
+		return NULL;
+
+	return (struct cbd_se *)(cbd_q->channel.cmdr + cbd_q->channel_info->cmd_tail);
+}
+
+static inline struct cbd_ce *get_complete_entry(struct cbd_queue *cbd_q)
+{
+	if (cbd_q->channel_info->compr_tail == cbd_q->channel_info->compr_head)
+		return NULL;
+
+	return (struct cbd_ce *)(cbd_q->channel.compr + cbd_q->channel_info->compr_tail);
+}
+
 static bool verify = false;
 
 static ssize_t blkdev_mapped_id_show(struct device *dev,
@@ -979,8 +1027,6 @@ static int cbd_queue_create(struct cbd_queue *cbd_q)
 		ret = -ENOMEM;
 		goto err;
 	}
-
-	global_cbd_q = cbd_q;
 
 	struct device *dev = &cbd_q->dev;
 	cbd_setup_device(dev, &cbd_q->cbd_blkdev->blkdev_dev->dev, &queue_type, "cbd%u-queue%u", cbd_q->cbd_blkdev->mapped_id, cbd_q->index);

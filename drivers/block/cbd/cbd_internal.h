@@ -5,6 +5,7 @@
 #include <asm/byteorder.h>
 #include <asm/types.h>
 #include <linux/types.h>
+#include <linux/delay.h>
 #include <linux/fs.h>
 #include <linux/dax.h>
 #include <linux/blkdev.h>
@@ -30,11 +31,11 @@
 #define CBD_DEV_NAME_LEN 32
 
 
-/*   cbd_transport_info       hosts         backends                         channel0                          channel1     ...
- * |-----------------|---------------|--------------|-------------------------------------------------|----------------|------|
- * |                 | host| host|...|              | CTRL | COMPR_SIZE | CMDR_SIZE |                 |
- * |                 |               |              |         META_SIZE             |    DATA_SIZE    |
- * | CBDT_INFO_SIZE  |               |              |                CHANNEL_SIZE                     |
+/*   cbd_transport_info       hosts      backends         blkdevs                          channel0                          channel1     ...
+ * |-----------------|---------------|--------------|---------------|-------------------------------------------------|----------------|------|
+ * |                 | host| host|...|              |               | CTRL | COMPR_SIZE | CMDR_SIZE |                 |
+ * |                 |               |              |               |         META_SIZE             |    DATA_SIZE    |
+ * | CBDT_INFO_SIZE  |               |              |               |                CHANNEL_SIZE                     |
  */
 
 /* cbd channel */
@@ -94,30 +95,6 @@ static u64 delay = HZ;
 	pr_info("cbd: " fmt, ##__VA_ARGS__)
 #define cbd_debug(fmt, ...)						\
 	pr_debug("cbd: " fmt, ##__VA_ARGS__)
-
-#define cbd_blk_err(dev, fmt, ...)					\
-	cbd_err("cbd%d: " fmt,					\
-		 dev->mapped_id, ##__VA_ARGS__)
-
-#define cbd_blk_info(dev, fmt, ...)					\
-	cbd_info("cbd%d: " fmt,					\
-		 dev->mapped_id, ##__VA_ARGS__)
-
-#define cbd_blk_debug(dev, fmt, ...)					\
-	cbd_debug("cbd%d: " fmt,					\
-		 dev->mapped_id, ##__VA_ARGS__)
-
-#define cbd_queue_err(queue, fmt, ...)					\
-	cbd_blk_err(queue->cbd_blkdev, "queue-%d: " fmt,			\
-		     queue->index, ##__VA_ARGS__)
-
-#define cbd_queue_info(queue, fmt, ...)					\
-	cbd_blk_info(queue->cbd_blkdev, "queue-%d: " fmt,			\
-		     queue->index, ##__VA_ARGS__)
-
-#define cbd_queue_debug(queue, fmt, ...)				\
-	cbd_blk_debug(queue->cbd_blkdev, "queue-%d: " fmt,			\
-		     queue->index, ##__VA_ARGS__)
 
 #define CBDT_INFO_F_BIGENDIAN		1 << 0
 
@@ -240,14 +217,6 @@ struct cbd_backend_info {
 	__le64	alive_ts;
 	__u8	path[CBD_PATH_LEN];
 	__le32	channels[CBDB_CHANNEL_NUM];
-};
-
-enum cbdb_channel_state {
-	cbdb_channel_state_none		= 0,
-	cbdb_channel_state_waiting,
-	cbdb_channel_state_running,
-	cbdb_channel_state_stopping,
-	cbdb_channel_state_stopped,
 };
 
 struct cbd_backend_handler {
@@ -793,48 +762,6 @@ struct cbd_queue {
 #endif /* CBD_REQUEST_STATS */
 };
 
-static inline struct cbd_se *get_submit_entry(struct cbd_queue *cbd_q)
-{
-	struct cbd_se *se;
-
-	//cbd_blk_err(cbd_q->cbd_blkdev, "get submit entry: %u", cbd_q->channel_info->cmd_head);
-	se = (struct cbd_se *)(cbd_q->channel.cmdr + cbd_q->channel_info->cmd_head);
-
-	return se;
-}
-
-static inline struct cbd_se *get_oldest_se(struct cbd_queue *cbd_q)
-{
-	if (cbd_q->channel_info->cmd_tail == cbd_q->channel_info->cmd_head)
-		return NULL;
-
-	cbd_blk_debug(cbd_q->cbd_blkdev, "get tail se: %u", cbd_q->channel_info->cmd_tail);
-	return (struct cbd_se *)(cbd_q->channel.cmdr + cbd_q->channel_info->cmd_tail);
-}
-
-static inline struct cbd_ce *get_complete_entry(struct cbd_queue *cbd_q)
-{
-	if (cbd_q->channel_info->compr_tail == cbd_q->channel_info->compr_head)
-		return NULL;
-
-	return (struct cbd_ce *)(cbd_q->channel.compr + cbd_q->channel_info->compr_tail);
-}
-
-static inline struct cbd_se *get_se_head(struct cbd_backend_handler *handler)
-{
-	return (struct cbd_se *)(handler->channel.cmdr + handler->channel_info->cmd_head);
-}
-
-static inline struct cbd_se *get_se_to_handle(struct cbd_backend_handler *handler)
-{
-	return (struct cbd_se *)(handler->channel.cmdr + handler->se_to_handle);
-}
-
-static inline struct cbd_ce *
-get_compr_head(struct cbd_backend_handler *handler)
-{
-	return (struct cbd_ce *)(handler->channel.compr + handler->channel_info->compr_head);
-}
 int cbd_sysfs_init(void);
 void cbd_sysfs_exit(void);
 

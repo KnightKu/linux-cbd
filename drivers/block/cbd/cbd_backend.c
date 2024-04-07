@@ -1,5 +1,20 @@
 #include "cbd_internal.h"
-#include <linux/delay.h>
+
+static inline struct cbd_se *get_se_head(struct cbd_backend_handler *handler)
+{
+	return (struct cbd_se *)(handler->channel.cmdr + handler->channel_info->cmd_head);
+}
+
+static inline struct cbd_se *get_se_to_handle(struct cbd_backend_handler *handler)
+{
+	return (struct cbd_se *)(handler->channel.cmdr + handler->se_to_handle);
+}
+
+static inline struct cbd_ce *
+get_compr_head(struct cbd_backend_handler *handler)
+{
+	return (struct cbd_ce *)(handler->channel.compr + handler->channel_info->compr_head);
+}
 
 static ssize_t cbd_backend_path_show(struct device *dev,
 			       struct device_attribute *attr,
