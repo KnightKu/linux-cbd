@@ -610,7 +610,6 @@ int cbd_hosts_exit(struct cbd_transport *cbdt);
 int cbd_channels_init(struct cbd_transport *cbdt);
 int cbd_channels_exit(struct cbd_transport *cbdt);
 
-extern uuid_t cbd_uuid;
 extern struct workqueue_struct	*cbd_wq;
 
 #define cbd_setup_device(DEV, PARENT, TYPE, fmt, ...)		\
