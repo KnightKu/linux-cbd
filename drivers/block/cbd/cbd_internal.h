@@ -613,9 +613,6 @@ struct cbd_adm_options {
 	};
 };
 
-int cbd_transport_format(struct cbd_transport *cbdt, struct cbd_adm_options *opts);
-ssize_t cbd_transport_info(struct cbd_transport *cbdt, char *buf);
-
 int cbd_backend_start(struct cbd_transport *cbdt, struct cbd_adm_options *opts);
 int cbd_backend_stop(struct cbd_transport *cbdt, struct cbd_adm_options *opts);
 int cbd_backend_clear(struct cbd_transport *cbdt, struct cbd_adm_options *opts);

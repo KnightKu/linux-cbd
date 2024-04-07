@@ -197,6 +197,66 @@ out:
 	return ret;
 }
 
+static inline void *__get_channel_info(struct cbd_transport *cbdt, u32 id);
+static void channels_format(struct cbd_transport *cbdt)
+{
+	struct cbd_transport_info *info = cbdt->transport_info;
+	struct cbd_channel_info *channel_info;
+	int i;
+
+	for (i = 0; i < info->channel_num; i++) {
+		channel_info = __get_channel_info(cbdt, i);
+		memset(channel_info, 0, 4096);
+	}
+}
+
+int cbd_transport_format(struct cbd_transport *cbdt, struct cbd_adm_options *opts)
+{
+	struct cbd_transport_info *info = cbdt->transport_info;
+	u64 magic;
+
+	mutex_lock(&cbdt->lock);
+	magic = info->magic;
+	if (magic && !opts->force) {
+		mutex_unlock(&cbdt->lock);
+		return -EEXIST;
+	}
+
+	memset(info, 0, CBDT_CHANNEL_AREA_OFF + CBDT_CHANNEL_SIZE * 2);
+
+	info->magic = CBD_TRANSPORT_MAGIC;
+	info->version = CBD_TRANSPORT_VERSION;
+#if defined(__BYTE_ORDER) ? __BYTE_ORDER == __GIT_ENDIAN : defined(__BIG_ENDIAN)
+	info->flags = cpu_to_le16(CBDT_INFO_F_BIGENDIAN);
+#endif
+	info->host_area_off = CBDT_HOST_AREA_OFF;
+	info->host_info_size = CBDT_HOST_INFO_SIZE;
+	info->host_num = CBDT_HOST_NUM;
+
+	info->backend_area_off = CBDT_BACKEND_AREA_OFF;
+	info->backend_info_size = CBDT_BACKEND_INFO_SIZE;
+	info->backend_num = CBDT_BACKEND_NUM;
+
+	info->blkdev_area_off = CBDT_BLKDEV_AREA_OFF;
+	info->blkdev_info_size = CBDT_BLKDEV_INFO_SIZE;
+	info->blkdev_num = CBDT_BLKDEV_NUM;
+
+	info->channel_area_off = CBDT_CHANNEL_AREA_OFF;
+	info->channel_size = CBDT_CHANNEL_SIZE;
+	info->channel_num = CBDT_CHANNEL_NUM;
+
+	//hosts_format(cbdt);
+	//backends_format(cbdt);
+	//blkdevs_format(cbdt);
+	channels_format(cbdt);
+
+	mutex_unlock(&cbdt->lock);
+
+	return 0;
+}
+
+
+
 int cbd_transport_stop(struct cbd_transport *cbdt);
 static ssize_t cbd_adm_store(struct device *dev,
 				 struct device_attribute *attr,
@@ -284,6 +344,56 @@ static ssize_t cbd_adm_store(struct device *dev,
 }
 
 static DEVICE_ATTR(adm, 0200, NULL, cbd_adm_store);
+
+static ssize_t cbd_transport_info(struct cbd_transport *cbdt, char *buf)
+{
+	struct cbd_transport_info *info = cbdt->transport_info;
+	u64 magic;
+	ssize_t ret;
+
+	mutex_lock(&cbdt->lock);
+	info = cbdt->transport_info;
+
+	magic = info->magic;
+	mutex_unlock(&cbdt->lock);
+
+	if (magic != CBD_TRANSPORT_MAGIC) {
+		return sprintf(buf, "invalid magic number: 0x%llx\n", magic);
+	}
+
+	ret = sprintf(buf, "magic: 0x%llx\n"		\
+			"version: %u\n"			\
+			"flags: %x\n\n"			\
+			"host_area_off: %llu\n"		\
+			"bytes_per_host_info: %u\n"	\
+			"host_num: %u\n\n"		\
+			"backend_area_off: %llu\n"	\
+			"bytes_per_backend_info: %u\n"	\
+			"backend_num: %u\n\n"		\
+			"blkdev_area_off: %llu\n"		\
+			"bytes_per_blkdev_info: %u\n"	\
+			"blkdev_num: %u\n\n"		\
+			"channel_area_off: %llu\n"	\
+			"bytes_per_channel: %u\n"	\
+			"channel_num: %u\n",
+			magic,
+			info->version,
+			info->flags,
+			info->host_area_off,
+			info->host_info_size,
+			info->host_num,
+			info->backend_area_off,
+			info->backend_info_size,
+			info->backend_num,
+			info->blkdev_area_off,
+			info->blkdev_info_size,
+			info->blkdev_num,
+			info->channel_area_off,
+			info->channel_size,
+			info->channel_num);
+
+	return ret;
+}
 
 static ssize_t cbd_info_show(struct device *dev,
 			       struct device_attribute *attr,
@@ -576,114 +686,6 @@ out:
 
 	return ret;
 }
-
-static void channels_format(struct cbd_transport *cbdt)
-{
-	struct cbd_transport_info *info = cbdt->transport_info;
-	struct cbd_channel_info *channel_info;
-	int i;
-
-	for (i = 0; i < info->channel_num; i++) {
-		channel_info = __get_channel_info(cbdt, i);
-		memset(channel_info, 0, 4096);
-	}
-}
-
-int cbd_transport_format(struct cbd_transport *cbdt, struct cbd_adm_options *opts)
-{
-	struct cbd_transport_info *info = cbdt->transport_info;
-	u64 magic;
-
-	mutex_lock(&cbdt->lock);
-	magic = info->magic;
-	if (magic && !opts->force) {
-		mutex_unlock(&cbdt->lock);
-		return -EEXIST;
-	}
-
-	memset(info, 0, CBDT_CHANNEL_AREA_OFF + CBDT_CHANNEL_SIZE * 2);
-
-	info->magic = CBD_TRANSPORT_MAGIC;
-	info->version = CBD_TRANSPORT_VERSION;
-#if defined(__BYTE_ORDER) ? __BYTE_ORDER == __GIT_ENDIAN : defined(__BIG_ENDIAN)
-	info->flags = cpu_to_le16(CBDT_INFO_F_BIGENDIAN);
-#endif
-	info->host_area_off = CBDT_HOST_AREA_OFF;
-	info->host_info_size = CBDT_HOST_INFO_SIZE;
-	info->host_num = CBDT_HOST_NUM;
-
-	info->backend_area_off = CBDT_BACKEND_AREA_OFF;
-	info->backend_info_size = CBDT_BACKEND_INFO_SIZE;
-	info->backend_num = CBDT_BACKEND_NUM;
-
-	info->blkdev_area_off = CBDT_BLKDEV_AREA_OFF;
-	info->blkdev_info_size = CBDT_BLKDEV_INFO_SIZE;
-	info->blkdev_num = CBDT_BLKDEV_NUM;
-
-	info->channel_area_off = CBDT_CHANNEL_AREA_OFF;
-	info->channel_size = CBDT_CHANNEL_SIZE;
-	info->channel_num = CBDT_CHANNEL_NUM;
-
-	//hosts_format(cbdt);
-	//backends_format(cbdt);
-	//blkdevs_format(cbdt);
-	channels_format(cbdt);
-
-	mutex_unlock(&cbdt->lock);
-
-	return 0;
-}
-
-ssize_t cbd_transport_info(struct cbd_transport *cbdt, char *buf)
-{
-	struct cbd_transport_info *info = cbdt->transport_info;
-	u64 magic;
-	ssize_t ret;
-
-	mutex_lock(&cbdt->lock);
-	info = cbdt->transport_info;
-
-	magic = info->magic;
-	mutex_unlock(&cbdt->lock);
-
-	if (magic != CBD_TRANSPORT_MAGIC) {
-		return sprintf(buf, "invalid magic number: 0x%llx\n", magic);
-	}
-
-	ret = sprintf(buf, "magic: 0x%llx\n"		\
-			"version: %u\n"			\
-			"flags: %x\n\n"			\
-			"host_area_off: %llu\n"		\
-			"bytes_per_host_info: %u\n"	\
-			"host_num: %u\n\n"		\
-			"backend_area_off: %llu\n"	\
-			"bytes_per_backend_info: %u\n"	\
-			"backend_num: %u\n\n"		\
-			"blkdev_area_off: %llu\n"		\
-			"bytes_per_blkdev_info: %u\n"	\
-			"blkdev_num: %u\n\n"		\
-			"channel_area_off: %llu\n"	\
-			"bytes_per_channel: %u\n"	\
-			"channel_num: %u\n",
-			magic,
-			info->version,
-			info->flags,
-			info->host_area_off,
-			info->host_info_size,
-			info->host_num,
-			info->backend_area_off,
-			info->backend_info_size,
-			info->backend_num,
-			info->blkdev_area_off,
-			info->blkdev_info_size,
-			info->blkdev_num,
-			info->channel_area_off,
-			info->channel_size,
-			info->channel_num);
-
-	return ret;
-}
-
 
 
 static int
