@@ -368,6 +368,14 @@ int cbdt_unregister(u32 tid)
 	return 0;
 }
 
+static inline void *__get_channel_info(struct cbd_transport *cbdt, u32 id)
+{
+	struct cbd_transport_info *info = cbdt->transport_info;
+	void *start = cbdt->transport_info;
+
+	return (start + info->channel_area_off + (info->channel_size * id));
+}
+
 static void channels_format(struct cbd_transport *cbdt)
 {
 	struct cbd_transport_info *info = cbdt->transport_info;
@@ -608,6 +616,131 @@ int cbdt_get_empty_hid(struct cbd_transport *cbdt, u32 *id)
 	}
 
 	cbdt_err(cbdt, "No available hid found.");
+	ret = -ENOENT;
+out:
+	mutex_unlock(&cbdt->lock);
+
+	return ret;
+}
+
+void *cbdt_get_channel_info(struct cbd_transport *cbdt, u32 id)
+{
+	void *addr;
+
+	mutex_lock(&cbdt->lock);
+	addr = __get_channel_info(cbdt, id);
+	mutex_unlock(&cbdt->lock);
+
+	return addr;
+}
+
+int cbdt_get_empty_channel_id(struct cbd_transport *cbdt, u32 *id)
+{
+	struct cbd_transport_info *info = cbdt->transport_info;
+	struct cbd_channel_info *channel_info;
+	int ret = 0;
+	int i;
+
+	mutex_lock(&cbdt->lock);
+	for (i = 0; i < info->channel_num; i++) {
+		channel_info = __get_channel_info(cbdt, i);
+		pr_err("channel_info: %p", channel_info);
+		if (cbd_channel_get_blkdev_state(channel_info) != cbdc_blkdev_state_running &&
+				cbd_channel_get_backend_state(channel_info) != cbdc_backend_state_running) {
+			*id = i;
+			goto out;
+		}
+	}
+
+	ret = -ENOENT;
+out:
+	mutex_unlock(&cbdt->lock);
+
+	return ret;
+}
+
+static inline void *__get_blkdev_info(struct cbd_transport *cbdt, u32 id)
+{
+	struct cbd_transport_info *info = cbdt->transport_info;
+	void *start = cbdt->transport_info;
+
+	return start + info->blkdev_area_off + (info->blkdev_info_size * id);
+}
+
+void *cbdt_get_blkdev_info(struct cbd_transport *cbdt, u32 id)
+{
+	struct cbd_transport_info *info = cbdt->transport_info;
+	void *start = cbdt->transport_info;
+	void *addr;
+
+	mutex_lock(&cbdt->lock);
+	addr = __get_blkdev_info(cbdt, id);
+	mutex_unlock(&cbdt->lock);
+
+	return addr;
+}
+
+int cbdt_get_empty_blkdev_id(struct cbd_transport *cbdt, u32 *id)
+{
+	struct cbd_transport_info *info = cbdt->transport_info;
+	struct cbd_blkdev_info *blkdev_info;
+	int ret = 0;
+	int i;
+
+	mutex_lock(&cbdt->lock);
+	for (i = 0; i < info->blkdev_num; i++) {
+		blkdev_info = __get_blkdev_info(cbdt, i);
+		pr_err("inf: %p, i: %u", blkdev_info, i);
+		if (blkdev_info->state == CBD_BLKDEV_STATE_EMPTY) {
+			*id = i;
+			goto out;
+		}
+	}
+
+	ret = -ENOENT;
+out:
+	mutex_unlock(&cbdt->lock);
+
+	return ret;
+}
+
+static inline void *__get_backend_info(struct cbd_transport *cbdt, u32 id)
+{
+	struct cbd_transport_info *info = cbdt->transport_info;
+	void *start = cbdt->transport_info;
+
+	return start + info->backend_area_off + (info->backend_info_size * id);
+}
+
+void *cbdt_get_backend_info(struct cbd_transport *cbdt, u32 id)
+{
+	struct cbd_transport_info *info = cbdt->transport_info;
+	void *start = cbdt->transport_info;
+	void *addr;
+
+	mutex_lock(&cbdt->lock);
+	addr = __get_backend_info(cbdt, id);
+	mutex_unlock(&cbdt->lock);
+
+	return addr;
+}
+
+int cbdt_get_empty_bid(struct cbd_transport *cbdt, u32 *id)
+{
+	struct cbd_transport_info *info = cbdt->transport_info;
+	struct cbd_backend_info *backend_info;
+	int ret = 0;
+	int i;
+
+	mutex_lock(&cbdt->lock);
+	for (i = 0; i < info->backend_num; i++) {
+		backend_info = __get_backend_info(cbdt, i);
+		if (backend_info->status == cbd_backend_status_none) {
+			*id = i;
+			goto out;
+		}
+	}
+
 	ret = -ENOENT;
 out:
 	mutex_unlock(&cbdt->lock);
