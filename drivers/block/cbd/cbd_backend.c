@@ -665,12 +665,12 @@ int cbd_backend_start(struct cbd_transport *cbdt, u32 backend_id, char *path)
 	return 0;
 }
 
-int cbd_backend_stop(struct cbd_transport *cbdt, struct cbd_adm_options *opts)
+int cbd_backend_stop(struct cbd_transport *cbdt, u32 backend_id)
 {
 	struct cbd_backend *cbd_b;
 	struct cbd_backend_info *backend_info;
 
-	cbd_b = cbdt_fetch_backend(cbdt, opts->backend_id);
+	cbd_b = cbdt_fetch_backend(cbdt, backend_id);
 	if (!cbd_b) {
 		return -ENOENT;
 	}
@@ -690,13 +690,14 @@ int cbd_backend_stop(struct cbd_transport *cbdt, struct cbd_adm_options *opts)
 	return 0;
 }
 
-int cbd_backend_clear(struct cbd_transport *cbdt, struct cbd_adm_options *opts)
+int cbd_backend_clear(struct cbd_transport *cbdt, u32 backend_id)
 {
 	struct cbd_backend *cbd_b;
 	struct cbd_backend_info *backend_info;
 
-	backend_info = cbdt_get_backend_info(cbdt, opts->backend_id);
+	backend_info = cbdt_get_backend_info(cbdt, backend_id);
 	backend_info->host_id = U32_MAX;
+	backend_info->status = cbd_backend_status_none;
 
 	return 0;
 }
