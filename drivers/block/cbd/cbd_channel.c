@@ -131,7 +131,6 @@ again:
 			data_head %= CBDC_DATA_SIZE;
 		}
 		src = channel->data + data_head;
-		//pr_err("%lx", crc64(src, 4096));
 
 		to_copy = min(bv.bv_offset + bv.bv_len - page_off, CBDC_DATA_SIZE - data_head);
 		if (data_head + to_copy > CBDC_DATA_SIZE)
@@ -163,11 +162,6 @@ again:
 		pr_err("truncate data_len");
 	}
 
-	//pr_err("channel%u: copy_to_bio: %u:%u crc: %llu offset: %llu\n", channel->channel_id, data_off, data_len, crc64(channel->data + data_off, data_len), offset);
-	if (false && verify_data && crc64(channel->data + data_off, data_len) != crc64(verify_data + offset, data_len)) {
-		pr_err("channel%u, read: crc error data_off: %llu data_len: %u, crc: %llu, verify_data: %llu, verify_offset: %llu\n", channel->channel_id, data_off, data_len, crc64(channel->data + data_off, data_len), crc64(verify_data + offset, data_len), offset);
-	}
-
 	return;
 }
 
@@ -192,7 +186,6 @@ again:
 			data_head %= CBDC_DATA_SIZE;
 		}
 		src = channel->data + data_head;
-		//pr_err("%lx", crc64(src, 4096));
 
 		to_copy = min(bv.bv_offset + bv.bv_len - page_off, CBDC_DATA_SIZE - data_head);
 		if (data_head + to_copy > CBDC_DATA_SIZE)
@@ -223,8 +216,6 @@ again:
 		data_len = CBDC_DATA_SIZE - data_off;
 		pr_err("truncate data_len");
 	}
-
-	//pr_err("channel%u copy_from_bio: data_off: %llu data_len: %u, crc: %llu, offset: %llu\n", channel->channel_id, data_off, data_len, crc64(channel->data + data_off, data_len), offset);
 
 	return;
 }

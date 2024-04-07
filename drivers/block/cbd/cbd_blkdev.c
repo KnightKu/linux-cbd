@@ -431,7 +431,6 @@ next:
 	}
 	}
 
-	//pr_err("cbd%u write data: crc: %llu, offset: %llu len: %llu\n", cbd_q->cbd_blkdev->mapped_id, crc64(verify_start, cbd_req->data_len), cbd_req->se->offset, cbd_req->data_len);
 
 advance_data_head:
 	cbd_q->channel.data_head = round_up(cbd_q->channel.data_head + cbd_req->data_len, PAGE_SIZE);
@@ -679,9 +678,6 @@ next:
 			pr_err("copy from done is not data_len");
 		}
 	}
-
-	//pr_err("cbd%u copy from verify data: crc: %llu, offset: %llu len: %llu\n", cbd_q->cbd_blkdev->mapped_id, crc64(verify_start, cbd_req->data_len), se->offset, cbd_req->data_len);
-
 
 	return;
 }
