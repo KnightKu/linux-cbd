@@ -156,7 +156,6 @@ enum cbdc_backend_state {
 	cbdc_backend_state_stopped,
 };
 
-
 #define CBD_DEVICE(OBJ)					\
 static struct cbd_## OBJ ##_device {					\
 	struct device dev;				\
