@@ -165,7 +165,6 @@ int cbd_host_register(struct cbd_transport *cbdt, struct cbd_adm_options *opts)
 
 	ret = cbdt_get_empty_hid(cbdt, &hid);
 	if (ret < 0) {
-		cbdt_err(cbdt, "No available hid found.");
 		return ret;
 	}
 
@@ -204,7 +203,7 @@ int cbd_host_unregister(struct cbd_transport *cbdt, struct cbd_adm_options *opts
 	struct cbd_host_info *host_info;
 
 	if (!host) {
-		cbdt_info(cbdt, "This host is not registered.");
+		pr_err("This host is not registered.");
 		return 0;
 	}
 

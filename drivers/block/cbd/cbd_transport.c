@@ -1,9 +1,17 @@
-#include <linux/export.h>
-#include <linux/device.h>
-#include <linux/mm.h>
-#include <linux/io.h>
-
 #include "cbd_internal.h"
+
+#define cbdt_err(transport, fmt, ...)						\
+	cbd_err("cbd_transport%u: " fmt,					\
+		 transport->id, ##__VA_ARGS__)
+
+#define cbdt_info(transport, fmt, ...)						\
+	cbd_info("cbd_transport%u: " fmt,					\
+		 transport->id, ##__VA_ARGS__)
+
+#define cbdt_debug(transport, fmt, ...)						\
+	cbd_debug("cbd_transport%u: " fmt,					\
+		 transport->id, ##__VA_ARGS__)
+
 
 static struct cbd_transport *cbd_transports[CBD_TRANSPORT_MAX];
 static DEFINE_IDA(cbd_transport_id_ida);
@@ -91,7 +99,6 @@ static int parse_adm_options(struct cbd_transport *cbdt,
 		if (!*p)
 			continue;
 
-		pr_err("p: %s\n", p);
 		token = match_token(p, adm_opt_tokens, args);
 		switch (token) {
 		case CBDT_ADM_OPT_OP:
@@ -562,4 +569,48 @@ int cbdt_register(struct cbdt_register_options *opts)
 	cbd_transport_init(cbdt, dax_dev);
 
 	return 0;
+}
+
+static inline __iomem struct cbd_host_info *__get_host_info(struct cbd_transport *cbdt, u32 id)
+{
+	struct cbd_transport_info *info = cbdt->transport_info;
+	void __iomem *start = cbdt->transport_info;
+
+	return start + info->host_area_off + (info->host_info_size * id);
+}
+
+struct cbd_host_info __iomem *cbdt_get_host_info(struct cbd_transport *cbdt, u32 id)
+{
+	struct cbd_host_info __iomem *host_info;
+
+	mutex_lock(&cbdt->lock);
+	host_info = __get_host_info(cbdt, id);
+	mutex_unlock(&cbdt->lock);
+
+	return host_info;
+}
+
+int cbdt_get_empty_hid(struct cbd_transport *cbdt, u32 *id)
+{
+	struct cbd_transport_info __iomem *info = cbdt->transport_info;
+	struct cbd_host_info __iomem *host_info;
+	uuid_t uuid;
+	int ret = 0;
+	int i;
+
+	mutex_lock(&cbdt->lock);
+	for (i = 0; i < readl(&info->host_num); i++) {
+		host_info = __get_host_info(cbdt, i);
+		if (host_info->status == cbd_host_status_none) {
+			*id = i;
+			goto out;
+		}
+	}
+
+	cbdt_err(cbdt, "No available hid found.");
+	ret = -ENOENT;
+out:
+	mutex_unlock(&cbdt->lock);
+
+	return ret;
 }

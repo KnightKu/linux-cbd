@@ -119,18 +119,6 @@ static u64 delay = HZ;
 	cbd_blk_debug(queue->cbd_blkdev, "queue-%d: " fmt,			\
 		     queue->index, ##__VA_ARGS__)
 
-#define cbdt_err(transport, fmt, ...)				\
-	cbd_err("cbd_transport%u: " fmt,					\
-		 transport->id, ##__VA_ARGS__)
-
-#define cbdt_info(transport, fmt, ...)				\
-	cbd_info("cbd_transport%u: " fmt,					\
-		 transport->id, ##__VA_ARGS__)
-
-#define cbdt_debug(transport, fmt, ...)				\
-	cbd_debug("cbd_transport%u: " fmt,					\
-		 transport->id, ##__VA_ARGS__)
-
 #define CBDT_INFO_F_BIGENDIAN		1 << 0
 
 struct cbd_transport_info {
@@ -646,48 +634,9 @@ out:
 	return ret;
 }
 
-static inline __iomem struct cbd_host_info *__get_host_info(struct cbd_transport *cbdt, u32 id)
-{
-	struct cbd_transport_info *info = cbdt->transport_info;
-	void __iomem *start = cbdt->transport_info;
 
-	return start + info->host_area_off + (info->host_info_size * id);
-}
-
-static inline struct cbd_host_info __iomem *cbdt_get_host_info(struct cbd_transport *cbdt, u32 id)
-{
-	struct cbd_host_info __iomem *host_info;
-
-	mutex_lock(&cbdt->lock);
-	host_info = __get_host_info(cbdt, id);
-	mutex_unlock(&cbdt->lock);
-
-	return host_info;
-}
-
-static inline int cbdt_get_empty_hid(struct cbd_transport *cbdt, u32 *id)
-{
-	struct cbd_transport_info __iomem *info = cbdt->transport_info;
-	struct cbd_host_info __iomem *host_info;
-	uuid_t uuid;
-	int ret = 0;
-	int i;
-
-	mutex_lock(&cbdt->lock);
-	for (i = 0; i < readl(&info->host_num); i++) {
-		host_info = __get_host_info(cbdt, i);
-		if (host_info->status == cbd_host_status_none) {
-			*id = i;
-			goto out;
-		}
-	}
-
-	ret = -ENOENT;
-out:
-	mutex_unlock(&cbdt->lock);
-
-	return ret;
-}
+struct cbd_host_info __iomem *cbdt_get_host_info(struct cbd_transport *cbdt, u32 id);
+int cbdt_get_empty_hid(struct cbd_transport *cbdt, u32 *id);
 
 /*
  * Portions Copyright (c) 1996-2001, PostgreSQL Global Development Group (Any
