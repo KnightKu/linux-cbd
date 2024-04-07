@@ -152,7 +152,6 @@ int cbd_host_register(struct cbd_transport *cbdt, struct cbd_adm_options *opts)
 {
 	struct cbd_host *host;
 	struct cbd_host_info *host_info;
-	struct cbd_transport_info *transport_info = cbdt->transport_info;
 	u32 hid;
 	int ret;
 
@@ -180,6 +179,7 @@ int cbd_host_register(struct cbd_transport *cbdt, struct cbd_adm_options *opts)
 	INIT_DELAYED_WORK(&host->hb_work, host_hb_workfn);
 
 	host_info = cbdt_get_host_info(cbdt, hid);
+	host_info->status = cbd_host_status_running;
 	memcpy_toio(&host_info->hostname, opts->host.hostname, CBD_NAME_LEN);
 
 	host->host_info = host_info;
@@ -212,6 +212,7 @@ int cbd_host_unregister(struct cbd_transport *cbdt, struct cbd_adm_options *opts
 	host_info = host->host_info;
 	memcpy_toio(&host_info->hostname, hostname_null, CBD_NAME_LEN);
 	writeq(0, &host_info->alive_ts);
+	host_info->status = cbd_host_status_none;
 
 	kfree(cbdt->host);
 	cbdt->host = NULL;

@@ -389,7 +389,9 @@ int cbd_transport_format(struct cbd_transport *cbdt, struct cbd_adm_options *opt
 
 	writeq(CBD_TRANSPORT_MAGIC, &info->magic);
 	writew(CBD_TRANSPORT_VERSION, &info->version);
-
+#if defined(__BYTE_ORDER) ? __BYTE_ORDER == __GIT_ENDIAN : defined(__BIG_ENDIAN)
+	info->flags = cpu_to_le16(CBDT_INFO_F_BIGENDIAN);
+#endif
 	writeq(CBDT_HOST_AREA_OFF, &info->host_area_off);
 	writel(CBDT_HOST_INFO_SIZE, &info->host_info_size);
 	writel(CBDT_HOST_NUM, &info->host_num);
@@ -420,6 +422,7 @@ int cbdt_validate(struct cbd_transport *cbdt)
 {
 	struct cbd_transport_info *info = cbdt->transport_info;
 	u64 magic;
+	u16 flags;
 	int ret = 0;
 
 	mutex_lock(&cbdt->lock);
@@ -427,8 +430,23 @@ int cbdt_validate(struct cbd_transport *cbdt)
 
 	if (readq(&info->magic) != CBD_TRANSPORT_MAGIC) {
 		ret = -EINVAL;
+		goto out;
 	}
 
+	flags = le16_to_cpu(info->flags);
+#if defined(__BYTE_ORDER) ? __BYTE_ORDER == __GIT_ENDIAN : defined(__BIG_ENDIAN)
+	if (!(flags & CBDT_INFO_F_BIGENDIAN)) {
+		ret = -EINVAL;
+		goto out;
+	}
+#else
+	if ((flags & CBDT_INFO_F_BIGENDIAN)) {
+		ret = -EINVAL;
+		goto out;
+	}
+#endif
+
+out:
 	mutex_unlock(&cbdt->lock);
 
 	return ret;

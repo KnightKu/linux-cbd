@@ -2,6 +2,9 @@
 #include <linux/device.h>
 #include <linux/module.h>
 #include <linux/blk-mq.h>
+#include <asm/byteorder.h>
+#include <asm/types.h>
+#include <linux/types.h>
 #include <linux/fs.h>
 #include <linux/dax.h>
 #include <linux/blkdev.h>
@@ -60,8 +63,8 @@
 #define CBDC_UPDATE_COMPR_TAIL(tail, used, size) smp_store_release(&tail, ((tail % size) + used) % size)
 
 /* cbd transport */
-#define CBD_TRANSPORT_MAGIC	0x676896C596EFULL
-#define CBD_TRANSPORT_VERSION 1
+#define CBD_TRANSPORT_MAGIC	0x9a6c676896C596EFULL
+#define CBD_TRANSPORT_VERSION	1
 
 #define CBDT_INFO_OFF			0
 #define CBDT_INFO_SIZE			4096
@@ -127,6 +130,8 @@ static u64 delay = HZ;
 #define cbdt_debug(transport, fmt, ...)				\
 	cbd_debug("cbd_transport%u: " fmt,					\
 		 transport->id, ##__VA_ARGS__)
+
+#define CBDT_INFO_F_BIGENDIAN		1 << 0
 
 struct cbd_transport_info {
 	__le64 magic;
@@ -221,7 +226,13 @@ struct cbd_channel {
 	spinlock_t compr_lock;
 };
 
+enum cbd_host_status {
+	cbd_host_status_none	= 0,
+	cbd_host_status_running
+};
+
 struct cbd_host_info {
+	u8	status;
 	__le64	alive_ts;
 	__u8	hostname[CBD_NAME_LEN];
 };
@@ -661,7 +672,7 @@ static inline int cbdt_get_empty_hid(struct cbd_transport *cbdt, u32 *id)
 	mutex_lock(&cbdt->lock);
 	for (i = 0; i < readl(&info->host_num); i++) {
 		host_info = __get_host_info(cbdt, i);
-		if (strlen(host_info->hostname) == 0) {
+		if (host_info->status == cbd_host_status_none) {
 			*id = i;
 			goto out;
 		}

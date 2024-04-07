@@ -181,6 +181,12 @@ static int __init cbd_init(void)
 {
 	int ret;
 
+#if defined(__BYTE_ORDER) ? __BYTE_ORDER == __LITTLE_ENDIAN : defined(__LITTLE_ENDIAN)
+	pr_err("little endian\n");
+#else
+	pr_err("big endian\n");
+#endif
+
 	cbd_wq = alloc_workqueue(CBD_DRV_NAME, WQ_MEM_RECLAIM, 0);
 	if (!cbd_wq) {
 		return -ENOMEM;
