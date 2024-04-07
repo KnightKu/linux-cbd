@@ -591,28 +591,6 @@ extern struct device_type cbd_host_type;
 int cbd_blkdev_init(void);
 void cbd_blkdev_exit(void);
 
-struct cbd_adm_options {
-	u16 op;
-	u16 force:1;
-	u32 backend_id;
-	union {
-		struct host_options {
-			u32 hid;
-			char hostname[CBD_NAME_LEN];
-		} host;
-		struct backend_options {
-			char path[CBD_PATH_LEN];
-		} backend;
-		struct channel_options {
-			u32 cid;
-		} channel;
-		struct blkdev_options {
-			u32 devid;
-			u32 queues;
-		} blkdev;
-	};
-};
-
 int cbd_backend_start(struct cbd_transport *cbdt, u32 backend_id, char *path);
 int cbd_backend_stop(struct cbd_transport *cbdt, u32 backend_id);
 int cbd_backend_clear(struct cbd_transport *cbdt, u32 backend_id);

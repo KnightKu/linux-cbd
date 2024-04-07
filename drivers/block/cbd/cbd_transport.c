@@ -119,6 +119,29 @@ static const match_table_t adm_opt_tokens = {
 	{ CBDT_ADM_OPT_ERR,		NULL	}
 };
 
+
+struct cbd_adm_options {
+	u16 op;
+	u16 force:1;
+	u32 backend_id;
+	union {
+		struct host_options {
+			u32 hid;
+			char hostname[CBD_NAME_LEN];
+		} host;
+		struct backend_options {
+			char path[CBD_PATH_LEN];
+		} backend;
+		struct channel_options {
+			u32 cid;
+		} channel;
+		struct blkdev_options {
+			u32 devid;
+			u32 queues;
+		} blkdev;
+	};
+};
+
 static int parse_adm_options(struct cbd_transport *cbdt,
 		char *buf,
 		struct cbd_adm_options *opts)
