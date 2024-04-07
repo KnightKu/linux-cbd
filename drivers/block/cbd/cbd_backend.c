@@ -174,16 +174,6 @@ static void backend_bio_end(struct bio *bio)
 	ce->priv_data = se->priv_data;
 	ce->flags = 0;
 	ce->result = 0;
-
-
-#ifdef CBD_REQUEST_STATS
-	if (0) {
-		struct cbd_request *cbd_req = NULL;
-		cbd_req = get_inflight_request(se->priv_data);
-		if (cbd_req)
-			cbd_req_stats_ktime_delta(cbd_req->start_to_ack,  cbd_req->start_kt);
-	}
-#endif
 	CBDC_UPDATE_COMPR_HEAD(handler->channel_info->compr_head, sizeof(struct cbd_ce), handler->channel_info->compr_size);
 	spin_unlock(&handler->channel.compr_lock);
 
@@ -282,17 +272,6 @@ static int handle_backend_cmd(struct cbd_backend_handler *handler, struct cbd_se
 		pr_err("unrecognized op: %x", cbd_se_hdr_get_op(se->header.len_op));
 		return -EINVAL;
 	}
-
-#ifdef CBD_REQUEST_STATS
-	if (0) {
-		cbd_req = get_inflight_request(se->priv_data);
-		if (cbd_req) {
-			cbd_req_stats_ktime_delta(cbd_req->start_to_handle, cbd_req->start_kt);
-		} else {
-			pr_err("req not found.");
-		}
-	}
-#endif
 
 	if (0) {
 		spin_lock(&handler->channel.compr_lock);

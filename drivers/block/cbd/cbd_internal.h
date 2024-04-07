@@ -395,8 +395,6 @@ static struct cbd_blkdev {
 	u32			status_flags;
 	struct kref		kref;
 
-	struct cbd_blkdev_sb	*sb;
-
 	void			*cmdr;
 	void			*compr;
 	spinlock_t		cmdr_lock;
@@ -918,18 +916,6 @@ static inline void cbd_se_hdr_flags_set(struct cbd_se *se, __le32 bit)
 	se->header.flags |= bit;
 }
 
-static struct cbd_blkdev_sb {
-	__le32 cmdr_off;
-	__le32 cmdr_size;
-	__le32 cmd_head;
-	__le32 cmd_tail;
-
-	__le32 compr_head;
-	__le32 compr_tail;
-	__le32 compr_off;
-	__le32 compr_size;
-};
-
 struct cbd_queue {
 	struct cbd_blkdev	*cbd_blkdev;
 
@@ -1118,8 +1104,6 @@ void cbd_debugfs_remove_dev(struct cbd_blkdev *cbd_dev);
 #define cbd_req_stats_ktime_aggregate(T, D)
 #define cbd_req_stats_ktime_delta(V, ST)
 #endif /* CBD_REQUEST_STATS */
-
-struct cbd_request *get_inflight_request(u64 req_tid);
 
 void cbdc_copy_from_bio(struct cbd_channel *channel,
 		u32 data_off, u32 data_len, struct bio *bio);

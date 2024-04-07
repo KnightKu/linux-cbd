@@ -571,24 +571,6 @@ static inline void complete_inflight_req(struct cbd_queue *cbd_q, struct cbd_req
 #endif /* CBD_REQUEST_STATS */
 }
 
-struct cbd_request *get_inflight_request(u64 req_tid)
-{
-	struct cbd_request *req;
-	bool found = false;
-
-	list_for_each_entry(req, &global_cbd_q->inflight_reqs, inflight_reqs_node) {
-		if (req->req_tid == req_tid) {
-			found = true;
-			break;
-		}
-	}
-
-	if (found)
-		return req;
-
-	return NULL;
-}
-
 static struct cbd_request *fetch_inflight_req(struct cbd_queue *cbd_q, u64 req_tid)
 {
 	struct cbd_request *req;
