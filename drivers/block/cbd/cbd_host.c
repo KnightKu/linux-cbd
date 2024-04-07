@@ -143,7 +143,7 @@ static void host_hb_workfn(struct work_struct *work)
 
 	ktime_t now = ktime_get_real();
 
-	writeq(now, &host_info->alive_ts);
+	host_info->alive_ts = now;
 
 	queue_delayed_work(cbd_wq, &host->hb_work, 5 * HZ);
 }
@@ -210,7 +210,7 @@ int cbd_host_unregister(struct cbd_transport *cbdt, struct cbd_adm_options *opts
 	cancel_delayed_work_sync(&host->hb_work);
 	host_info = host->host_info;
 	memcpy_toio(&host_info->hostname, hostname_null, CBD_NAME_LEN);
-	writeq(0, &host_info->alive_ts);
+	host_info->alive_ts = 0;
 	host_info->status = cbd_host_status_none;
 
 	kfree(cbdt->host);

@@ -59,7 +59,7 @@
 #define CBDC_UPDATE_CMDR_HEAD(head, used, size) smp_store_release(&head, ((head % size) + used) % size)
 #define CBDC_UPDATE_CMDR_TAIL(tail, used, size) smp_store_release(&tail, ((tail % size) + used) % size)
 
-#define CBDC_UPDATE_COMPR_HEAD(head, used, size) writel(((head % size) + used) % size, &head)
+#define CBDC_UPDATE_COMPR_HEAD(head, used, size) smp_store_release(&head, ((head % size) + used) % size)
 #define CBDC_UPDATE_COMPR_TAIL(tail, used, size) smp_store_release(&tail, ((tail % size) + used) % size)
 
 /* cbd transport */

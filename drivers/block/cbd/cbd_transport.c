@@ -394,26 +394,26 @@ int cbd_transport_format(struct cbd_transport *cbdt, struct cbd_adm_options *opt
 
 	memset(info, 0, CBDT_CHANNEL_AREA_OFF + CBDT_CHANNEL_SIZE * 2);
 
-	writeq(CBD_TRANSPORT_MAGIC, &info->magic);
-	writew(CBD_TRANSPORT_VERSION, &info->version);
+	info->magic = CBD_TRANSPORT_MAGIC;
+	info->version = CBD_TRANSPORT_VERSION;
 #if defined(__BYTE_ORDER) ? __BYTE_ORDER == __GIT_ENDIAN : defined(__BIG_ENDIAN)
 	info->flags = cpu_to_le16(CBDT_INFO_F_BIGENDIAN);
 #endif
-	writeq(CBDT_HOST_AREA_OFF, &info->host_area_off);
-	writel(CBDT_HOST_INFO_SIZE, &info->host_info_size);
-	writel(CBDT_HOST_NUM, &info->host_num);
+	info->host_area_off = CBDT_HOST_AREA_OFF;
+	info->host_info_size = CBDT_HOST_INFO_SIZE;
+	info->host_num = CBDT_HOST_NUM;
 
-	writeq(CBDT_BACKEND_AREA_OFF, &info->backend_area_off);
-	writel(CBDT_BACKEND_INFO_SIZE, &info->backend_info_size);
-	writel(CBDT_BACKEND_NUM, &info->backend_num);
+	info->backend_area_off = CBDT_BACKEND_AREA_OFF;
+	info->backend_info_size = CBDT_BACKEND_INFO_SIZE;
+	info->backend_num = CBDT_BACKEND_NUM;
 
-	writeq(CBDT_BLKDEV_AREA_OFF, &info->blkdev_area_off);
-	writel(CBDT_BLKDEV_INFO_SIZE, &info->blkdev_info_size);
-	writel(CBDT_BLKDEV_NUM, &info->blkdev_num);
+	info->blkdev_area_off = CBDT_BLKDEV_AREA_OFF;
+	info->blkdev_info_size = CBDT_BLKDEV_INFO_SIZE;
+	info->blkdev_num = CBDT_BLKDEV_NUM;
 
-	writeq(CBDT_CHANNEL_AREA_OFF, &info->channel_area_off);
-	writel(CBDT_CHANNEL_SIZE, &info->channel_size);
-	writel(CBDT_CHANNEL_NUM, &info->channel_num);
+	info->channel_area_off = CBDT_CHANNEL_AREA_OFF;
+	info->channel_size = CBDT_CHANNEL_SIZE;
+	info->channel_num = CBDT_CHANNEL_NUM;
 
 	//hosts_format(cbdt);
 	//backends_format(cbdt);
