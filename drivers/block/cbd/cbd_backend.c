@@ -598,7 +598,7 @@ void state_work_fn(struct work_struct *work)
 	queue_delayed_work(cbd_wq, &cbd_b->state_work, 1 * HZ);
 }
 
-static int cbd_backend_init(struct cbd_backend *cbd_b, struct cbd_adm_options *opts)
+static int cbd_backend_init(struct cbd_backend *cbd_b)
 {
 	int ret;
 	struct cbd_backend_info *b_info;
@@ -633,19 +633,12 @@ static int cbd_backend_init(struct cbd_backend *cbd_b, struct cbd_adm_options *o
 }
 
 
-int cbd_backend_start(struct cbd_transport *cbdt, struct cbd_adm_options *opts)
+int cbd_backend_start(struct cbd_transport *cbdt, u32 backend_id, char *path)
 {
 	struct cbd_backend *backend;
 	struct cbd_backend_info *backend_info;
 	uuid_t b_uuid;
-	u32 backend_id;
 	int ret;
-
-	ret = cbdt_get_empty_backend_id(cbdt, &backend_id);
-	if (ret) {
-		pr_err("failed to find empty backend_id: %d\n", ret);
-		return ret;
-	}
 
 	backend_info = cbdt_get_backend_info(cbdt, backend_id);
 
@@ -659,7 +652,7 @@ int cbd_backend_start(struct cbd_transport *cbdt, struct cbd_adm_options *opts)
 		return -ENOMEM;
 	}
 
-	strlcpy(backend->path, opts->backend.path, CBD_PATH_LEN);
+	strlcpy(backend->path, path, CBD_PATH_LEN);
 	memcpy_toio(backend_info->path, backend->path, CBD_PATH_LEN);
 	INIT_LIST_HEAD(&backend->node);
 	backend->backend_id = backend_id;
@@ -667,7 +660,7 @@ int cbd_backend_start(struct cbd_transport *cbdt, struct cbd_adm_options *opts)
 
 	backend->cbdt = cbdt;
 
-	cbd_backend_init(backend, opts);
+	cbd_backend_init(backend);
 
 	return 0;
 }

@@ -302,7 +302,15 @@ static ssize_t cbd_adm_store(struct device *dev,
 			return ret;
 		break;
 	case CBDT_ADM_OP_B_START:
-		ret = cbd_backend_start(cbdt, &opts);
+		u32 backend_id;
+
+		ret = cbdt_get_empty_backend_id(cbdt, &backend_id);
+		if (ret) {
+			pr_err("failed to find empty backend_id: %d\n", ret);
+			return ret;
+		}
+
+		ret = cbd_backend_start(cbdt, backend_id, opts.backend.path);
 		if (ret < 0)
 			return ret;
 		break;
