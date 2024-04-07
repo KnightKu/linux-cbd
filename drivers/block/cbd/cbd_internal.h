@@ -233,7 +233,7 @@ struct cbd_backend_handler {
 };
 
 struct cbd_backend {
-	u32 bid;
+	u32 backend_id;
 	char path[CBD_PATH_LEN];
 	struct cbd_transport *cbdt;
 	struct cbd_backend_info *backend_info;
@@ -352,7 +352,7 @@ static inline struct cbd_backend *cbdt_fetch_backend(struct cbd_transport *cbdt,
 
 	mutex_lock(&cbdt->lock);
 	list_for_each_entry(backend, &cbdt->backends, node) {
-		if (backend->bid == id) {
+		if (backend->backend_id == id) {
 			list_del(&backend->node);
 			goto out;
 		}
@@ -410,13 +410,13 @@ CBD_GETTER_AND_SETTER(channel, backend, state, CBDC_BACKEND_STATE_MASK);
 CBD_GETTER_AND_SETTER(channel, backend, id, CBDC_BACKEND_ID_MASK);
 
 struct cbd_host_info *cbdt_get_host_info(struct cbd_transport *cbdt, u32 id);
-int cbdt_get_empty_hid(struct cbd_transport *cbdt, u32 *id);
+int cbdt_get_empty_host_id(struct cbd_transport *cbdt, u32 *id);
 void *cbdt_get_channel_info(struct cbd_transport *cbdt, u32 id);
 int cbdt_get_empty_channel_id(struct cbd_transport *cbdt, u32 *id);
 void *cbdt_get_blkdev_info(struct cbd_transport *cbdt, u32 id);
 int cbdt_get_empty_blkdev_id(struct cbd_transport *cbdt, u32 *id);
 void *cbdt_get_backend_info(struct cbd_transport *cbdt, u32 id);
-int cbdt_get_empty_bid(struct cbd_transport *cbdt, u32 *id);
+int cbdt_get_empty_backend_id(struct cbd_transport *cbdt, u32 *id);
 
 enum cbd_op {
 	CBD_OP_PAD = 0,
@@ -594,7 +594,7 @@ void cbd_blkdev_exit(void);
 struct cbd_adm_options {
 	u16 op;
 	u16 force:1;
-	u32 bid;
+	u32 backend_id;
 	union {
 		struct host_options {
 			u32 hid;
@@ -607,7 +607,7 @@ struct cbd_adm_options {
 			u32 cid;
 		} channel;
 		struct blkdev_options {
-			u32 did;
+			u32 devid;
 			u32 queues;
 		} blkdev;
 	};

@@ -577,7 +577,7 @@ void state_work_fn(struct work_struct *work)
 
 		if (blkdev_state == cbdc_blkdev_state_running &&
 				backend_state == cbdc_backend_state_none &&
-				backend_id == cbd_b->bid) {
+				backend_id == cbd_b->backend_id) {
 
 			pr_err("someone is waiting");
 			mutex_lock(&cbd_b->lock);
@@ -588,7 +588,7 @@ void state_work_fn(struct work_struct *work)
 		
 		if (blkdev_state == cbdc_blkdev_state_stopped &&
 				backend_state == cbdc_backend_state_running &&
-				backend_id == cbd_b->bid) {
+				backend_id == cbd_b->backend_id) {
 			mutex_lock(&cbd_b->lock);
 			destroy_handler(cbd_b, i);
 			mutex_unlock(&cbd_b->lock);
@@ -604,7 +604,7 @@ static int cbd_backend_init(struct cbd_backend *cbd_b, struct cbd_adm_options *o
 	struct cbd_backend_info *b_info;
 	struct cbd_transport *cbdt = cbd_b->cbdt;
 
-	b_info = cbdt_get_backend_info(cbdt, cbd_b->bid);
+	b_info = cbdt_get_backend_info(cbdt, cbd_b->backend_id);
 	cbd_b->backend_info = b_info;
 
 	b_info->host_id = cbd_b->cbdt->host->host_id;
@@ -623,7 +623,7 @@ static int cbd_backend_init(struct cbd_backend *cbd_b, struct cbd_adm_options *o
 
 	INIT_DELAYED_WORK(&cbd_b->state_work, state_work_fn);
 	INIT_LIST_HEAD(&cbd_b->handlers);
-	cbd_b->backend_device = &cbdt->cbd_backends_dev->backend_devs[cbd_b->bid];
+	cbd_b->backend_device = &cbdt->cbd_backends_dev->backend_devs[cbd_b->backend_id];
 
 	mutex_init(&cbd_b->lock);
 
@@ -638,16 +638,16 @@ int cbd_backend_start(struct cbd_transport *cbdt, struct cbd_adm_options *opts)
 	struct cbd_backend *backend;
 	struct cbd_backend_info *backend_info;
 	uuid_t b_uuid;
-	u32 bid;
+	u32 backend_id;
 	int ret;
 
-	ret = cbdt_get_empty_bid(cbdt, &bid);
+	ret = cbdt_get_empty_backend_id(cbdt, &backend_id);
 	if (ret) {
-		pr_err("failed to find empty bid: %d\n", ret);
+		pr_err("failed to find empty backend_id: %d\n", ret);
 		return ret;
 	}
 
-	backend_info = cbdt_get_backend_info(cbdt, bid);
+	backend_info = cbdt_get_backend_info(cbdt, backend_id);
 
 	if (backend_info->status != cbd_backend_status_none)
 		return -EEXIST;
@@ -662,7 +662,7 @@ int cbd_backend_start(struct cbd_transport *cbdt, struct cbd_adm_options *opts)
 	strlcpy(backend->path, opts->backend.path, CBD_PATH_LEN);
 	memcpy_toio(backend_info->path, backend->path, CBD_PATH_LEN);
 	INIT_LIST_HEAD(&backend->node);
-	backend->bid = bid;
+	backend->backend_id = backend_id;
 	cbdt_add_backend(cbdt, backend);
 
 	backend->cbdt = cbdt;
@@ -677,7 +677,7 @@ int cbd_backend_stop(struct cbd_transport *cbdt, struct cbd_adm_options *opts)
 	struct cbd_backend *cbd_b;
 	struct cbd_backend_info *backend_info;
 
-	cbd_b = cbdt_fetch_backend(cbdt, opts->bid);
+	cbd_b = cbdt_fetch_backend(cbdt, opts->backend_id);
 	if (!cbd_b) {
 		return -ENOENT;
 	}
@@ -685,7 +685,7 @@ int cbd_backend_stop(struct cbd_transport *cbdt, struct cbd_adm_options *opts)
 	cancel_delayed_work_sync(&cbd_b->state_work);
 	destroy_handlers(cbd_b);
 
-	backend_info = cbdt_get_backend_info(cbdt, cbd_b->bid);
+	backend_info = cbdt_get_backend_info(cbdt, cbd_b->backend_id);
 	backend_info->host_id = U32_MAX;
 	backend_info->status = cbd_backend_status_none;
 
@@ -702,7 +702,7 @@ int cbd_backend_clear(struct cbd_transport *cbdt, struct cbd_adm_options *opts)
 	struct cbd_backend *cbd_b;
 	struct cbd_backend_info *backend_info;
 
-	backend_info = cbdt_get_backend_info(cbdt, opts->bid);
+	backend_info = cbdt_get_backend_info(cbdt, opts->backend_id);
 	backend_info->host_id = U32_MAX;
 
 	return 0;

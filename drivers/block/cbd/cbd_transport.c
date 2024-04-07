@@ -78,8 +78,8 @@ static const match_table_t adm_opt_tokens = {
 	{ CBDT_ADM_OPT_OP,		"op=%s"	},
 	{ CBDT_ADM_OPT_FORCE,		"force=%u" },
 	{ CBDT_ADM_OPT_PATH,		"path=%s" },
-	{ CBDT_ADM_OPT_BID,		"bid=%u" },
-	{ CBDT_ADM_OPT_DID,		"did=%u" },
+	{ CBDT_ADM_OPT_BID,		"backend_id=%u" },
+	{ CBDT_ADM_OPT_DID,		"devid=%u" },
 	{ CBDT_ADM_OPT_HOSTNAME,	"hostname=%s" },
 	{ CBDT_ADM_OPT_QUEUES,		"queues=%u" },
 	{ CBDT_ADM_OPT_ERR,		NULL	}
@@ -129,14 +129,14 @@ static int parse_adm_options(struct cbd_transport *cbdt,
 				ret = -EINVAL;
 				goto out;
 			}
-			opts->bid = token;
+			opts->backend_id = token;
 			break;
 		case CBDT_ADM_OPT_DID:
 			if (match_uint(args, &token)) {
 				ret = -EINVAL;
 				goto out;
 			}
-			opts->blkdev.did = token;
+			opts->blkdev.devid = token;
 			break;
 		case CBDT_ADM_OPT_HOSTNAME:
 			if (match_strlcpy(opts->host.hostname, &args[0],
@@ -387,7 +387,7 @@ struct cbd_host_info *cbdt_get_host_info(struct cbd_transport *cbdt, u32 id)
 	return host_info;
 }
 
-int cbdt_get_empty_hid(struct cbd_transport *cbdt, u32 *id)
+int cbdt_get_empty_host_id(struct cbd_transport *cbdt, u32 *id)
 {
 	struct cbd_transport_info *info = cbdt->transport_info;
 	struct cbd_host_info *host_info;
@@ -404,7 +404,7 @@ int cbdt_get_empty_hid(struct cbd_transport *cbdt, u32 *id)
 		}
 	}
 
-	cbdt_err(cbdt, "No available hid found.");
+	cbdt_err(cbdt, "No available host_id found.");
 	ret = -ENOENT;
 out:
 	mutex_unlock(&cbdt->lock);
@@ -520,7 +520,7 @@ void *cbdt_get_backend_info(struct cbd_transport *cbdt, u32 id)
 	return addr;
 }
 
-int cbdt_get_empty_bid(struct cbd_transport *cbdt, u32 *id)
+int cbdt_get_empty_backend_id(struct cbd_transport *cbdt, u32 *id)
 {
 	struct cbd_transport_info *info = cbdt->transport_info;
 	struct cbd_backend_info *backend_info;

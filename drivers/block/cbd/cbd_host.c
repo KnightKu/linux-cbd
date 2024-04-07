@@ -163,7 +163,7 @@ int cbd_host_register(struct cbd_transport *cbdt, struct cbd_adm_options *opts)
 		return -EINVAL;
 	}
 
-	ret = cbdt_get_empty_hid(cbdt, &hid);
+	ret = cbdt_get_empty_host_id(cbdt, &hid);
 	if (ret < 0) {
 		return ret;
 	}
