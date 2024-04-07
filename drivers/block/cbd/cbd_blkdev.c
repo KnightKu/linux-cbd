@@ -664,10 +664,6 @@ static void complete_work_fn(struct work_struct *work)
 	struct cbd_request *cbd_req;
 	int retry = 0;
 
-	if (stop) {
-		return;
-	}
-
 again:
 	spin_lock(&cbd_q->channel.compr_lock);
 	ce = get_complete_entry(cbd_q);

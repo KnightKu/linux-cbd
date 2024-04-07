@@ -117,14 +117,13 @@ static ssize_t transport_register_store(const struct bus_type *bus, const char *
 	if (!capable(CAP_SYS_ADMIN))
 		return -EPERM;
 
-	pr_err("ubuf: %s\n", ubuf);
-
 	buf = kmemdup(ubuf, size + 1, GFP_KERNEL);
 	if (IS_ERR(buf)) {
 		pr_err("failed to dup buf for adm option: %d", (int)PTR_ERR(buf));
 		return PTR_ERR(buf);
 	}
 	buf[size] = '\0';
+
 	ret = parse_register_options(buf, &opts);
 	if (ret < 0) {
 		kfree(buf);
@@ -139,12 +138,11 @@ static ssize_t transport_register_store(const struct bus_type *bus, const char *
 	return size;
 }
 
-/* TODO support multi device feature */
-#define RBD_FEATURES_SUPPORTED	0x0ULL
+#define CBD_FEATURES_SUPPORTED	0x0ULL
 
 static ssize_t supported_features_show(const struct bus_type *bus, char *buf)
 {
-	return sprintf(buf, "0x%llx\n", RBD_FEATURES_SUPPORTED);
+	return sprintf(buf, "0x%llx\n", CBD_FEATURES_SUPPORTED);
 }
 
 static BUS_ATTR_WO(transport_unregister);
@@ -180,12 +178,6 @@ struct device cbd_root_dev = {
 static int __init cbd_init(void)
 {
 	int ret;
-
-#if defined(__BYTE_ORDER) ? __BYTE_ORDER == __LITTLE_ENDIAN : defined(__LITTLE_ENDIAN)
-	pr_err("little endian\n");
-#else
-	pr_err("big endian\n");
-#endif
 
 	cbd_wq = alloc_workqueue(CBD_DRV_NAME, WQ_MEM_RECLAIM, 0);
 	if (!cbd_wq) {
@@ -229,7 +221,6 @@ destroy_wq:
 
 static void cbd_exit(void)
 {
-	stop = 1;
 	cbd_debugfs_cleanup();
 	cbd_blkdev_exit();
 	bus_unregister(&cbd_bus_type);

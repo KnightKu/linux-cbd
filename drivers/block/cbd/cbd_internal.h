@@ -877,8 +877,6 @@ struct cbd_request {
 #endif
 };
 
-static bool stop  = 0;
-
 #define CBD_OP_MASK 0xff
 #define CBD_OP_SHIFT 8
 
