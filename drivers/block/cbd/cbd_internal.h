@@ -624,8 +624,8 @@ int cbd_blkdev_stop(struct cbd_transport *cbdt, u32 devid);
 int cbd_blkdevs_init(struct cbd_transport *cbdt);
 int cbd_blkdevs_exit(struct cbd_transport *cbdt);
 
-int cbd_host_register(struct cbd_transport *cbdt, struct cbd_adm_options *opts);
-int cbd_host_unregister(struct cbd_transport *cbdt, struct cbd_adm_options *opts);
+int cbd_host_register(struct cbd_transport *cbdt, u32 host_id, char *hostname);
+int cbd_host_unregister(struct cbd_transport *cbdt);
 int cbd_hosts_init(struct cbd_transport *cbdt);
 int cbd_hosts_exit(struct cbd_transport *cbdt);
 

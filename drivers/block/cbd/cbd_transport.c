@@ -335,10 +335,17 @@ static ssize_t cbd_adm_store(struct device *dev,
 			return ret;
 		break;
 	case CBDT_ADM_OP_HOST_REG:
-		ret = cbd_host_register(cbdt, &opts);
+		u32 hid;
+
+		ret = cbdt_get_empty_host_id(cbdt, &hid);
+		if (ret < 0) {
+			return ret;
+		}
+
+		ret = cbd_host_register(cbdt, hid, opts.host.hostname);
 		break;
 	case CBDT_ADM_OP_HOST_UNREG:
-		ret = cbd_host_unregister(cbdt, &opts);
+		ret = cbd_host_unregister(cbdt);
 		break;
 	default:
 		pr_err("invalid op: %d\n", opts.op);

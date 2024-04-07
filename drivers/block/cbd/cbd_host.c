@@ -148,24 +148,18 @@ static void host_hb_workfn(struct work_struct *work)
 	queue_delayed_work(cbd_wq, &host->hb_work, 5 * HZ);
 }
 
-int cbd_host_register(struct cbd_transport *cbdt, struct cbd_adm_options *opts)
+int cbd_host_register(struct cbd_transport *cbdt, u32 host_id, char *hostname)
 {
 	struct cbd_host *host;
 	struct cbd_host_info *host_info;
-	u32 hid;
 	int ret;
 
 	if (cbdt->host) {
 		return -EEXIST;
 	}
 
-	if (opts->host.hostname[0] == 0) {
+	if (strlen(hostname) == 0) {
 		return -EINVAL;
-	}
-
-	ret = cbdt_get_empty_host_id(cbdt, &hid);
-	if (ret < 0) {
-		return ret;
 	}
 
 	host = kzalloc(sizeof(struct cbd_host), GFP_KERNEL);
@@ -174,12 +168,12 @@ int cbd_host_register(struct cbd_transport *cbdt, struct cbd_adm_options *opts)
 		goto err;
 	}
 
-	host->host_id = hid;
+	host->host_id = host_id;
 	INIT_DELAYED_WORK(&host->hb_work, host_hb_workfn);
 
-	host_info = cbdt_get_host_info(cbdt, hid);
+	host_info = cbdt_get_host_info(cbdt, host_id);
 	host_info->status = cbd_host_status_running;
-	memcpy_toio(&host_info->hostname, opts->host.hostname, CBD_NAME_LEN);
+	memcpy_toio(&host_info->hostname, hostname, CBD_NAME_LEN);
 
 	host->host_info = host_info;
 	cbdt->host = host;
@@ -197,7 +191,7 @@ err:
 	return ret;
 }
 
-int cbd_host_unregister(struct cbd_transport *cbdt, struct cbd_adm_options *opts)
+int cbd_host_unregister(struct cbd_transport *cbdt)
 {
 	struct cbd_host *host = cbdt->host;
 	struct cbd_host_info *host_info;
