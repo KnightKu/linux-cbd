@@ -33,7 +33,7 @@ static ssize_t blkdev_alive_show(struct device *dev,
 	blkdev = container_of(dev, struct cbd_blkdev_device, dev);
 	blkdev_info = blkdev->blkdev_info;
 
-	ts = readq(&blkdev_info->alive_ts);
+	ts = blkdev_info->alive_ts;
 	oldest = ktime_sub_ms(ktime_get_real(), 30 * 1000);
 
 	if (ktime_after(ts, oldest))
@@ -1181,7 +1181,7 @@ int cbd_blkdev_start(struct cbd_transport *cbdt, struct cbd_adm_options *opts)
 	list_add(&cbd_blkdev->node, &cbd_dev_list);
 	spin_unlock(&cbd_dev_list_lock);
 
-	writel(cbd_blkdev->blkdev_id, &cbd_blkdev->blkdev_info->mapped_id);
+	cbd_blkdev->blkdev_info->mapped_id = cbd_blkdev->blkdev_id;
 	cbd_blkdev->blkdev_info->state = CBD_BLKDEV_STATE_RUNNING;
 
 	set_capacity(cbd_blkdev->disk, cbd_blkdev->dev_size / SECTOR_SIZE);

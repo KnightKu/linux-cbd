@@ -35,7 +35,7 @@ static ssize_t cbd_backend_alive_show(struct device *dev,
 	backend = container_of(dev, struct cbd_backend_device, dev);
 	backend_info = backend->backend_info;
 
-	ts = readq(&backend_info->alive_ts);
+	ts = backend_info->alive_ts;
 	oldest = ktime_sub_ms(ktime_get_real(), 30 * 1000);
 
 	if (ktime_after(ts, oldest))

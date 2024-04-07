@@ -298,7 +298,7 @@ static inline u8 cbdb_get_channel_state(struct cbd_backend_info *backend_info,
 {
 	u32 channel_val;
 
-	channel_val = readl(&backend_info->channels[index]);
+	channel_val = backend_info->channels[index];
 
 	return FIELD_GET(CBDB_CHANNEL_STATE_MASK, channel_val);
 }
@@ -308,12 +308,12 @@ static inline void cbdb_set_channel_state(struct cbd_backend_info *backend_info,
 {
 	u32 channel_val;
 
-	channel_val = readl(&backend_info->channels[index]);
+	channel_val = backend_info->channels[index];
 
 	channel_val &= ~CBDB_CHANNEL_STATE_MASK;
 	channel_val |= FIELD_PREP(CBDB_CHANNEL_STATE_MASK, channel_state);
 
-	writel(channel_val, &backend_info->channels[index]);
+	backend_info->channels[index] = channel_val;
 }
 
 static inline u32 cbdb_get_channel_id(struct cbd_backend_info *backend_info,
@@ -321,7 +321,7 @@ static inline u32 cbdb_get_channel_id(struct cbd_backend_info *backend_info,
 {
 	u32 channel_val;
 
-	channel_val = readl(&backend_info->channels[index]);
+	channel_val = backend_info->channels[index];
 
 	return FIELD_GET(CBDB_CHANNEL_ID_MASK, channel_val);
 }
@@ -331,12 +331,12 @@ static inline void cbdb_set_channel_id(struct cbd_backend_info *backend_info,
 {
 	u32 channel_val;
 
-	channel_val = readl(&backend_info->channels[index]);
+	channel_val = backend_info->channels[index];
 
 	channel_val &= ~CBDB_CHANNEL_ID_MASK;
 	channel_val |= FIELD_PREP(CBDB_CHANNEL_ID_MASK, channel_id);
 
-	writel(channel_val, &backend_info->channels[index]);
+	backend_info->channels[index] = channel_val;
 }
 
 #define CBD_BLKDEV_STATE_EMPTY		0
@@ -475,7 +475,7 @@ static inline u32 cbd_ ## OBJ ## _get_## VAR ##_## KEY (					\
 {											\
 	u32 val;									\
 											\
-	val = readl(&info->VAR);					\
+	val = info->VAR;					\
 											\
 	return FIELD_GET(MASK, val);							\
 }											\
@@ -486,12 +486,12 @@ static inline void cbd_ ## OBJ ## _set_ ## VAR ##_## KEY (					\
 {										\
 	u32 val;								\
 										\
-	val = readl(&info->VAR);						\
+	val = info->VAR;						\
 										\
 	val &= ~MASK;								\
 	val |= FIELD_PREP(MASK, v);						\
 										\
-	writel(val, &info->VAR);						\
+	info->VAR = val;						\
 }										\
 
 CBD_GETTER_AND_SETTER(channel, blkdev, state, CBDC_BLKDEV_STATE_MASK);
@@ -944,10 +944,10 @@ static inline struct cbd_se *get_oldest_se(struct cbd_queue *cbd_q)
 
 static inline struct cbd_ce *get_complete_entry(struct cbd_queue *cbd_q)
 {
-	if (readl(&cbd_q->channel_info->compr_tail) == readl(&cbd_q->channel_info->compr_head))
+	if (cbd_q->channel_info->compr_tail == cbd_q->channel_info->compr_head)
 		return NULL;
 
-	return (struct cbd_ce *)(cbd_q->channel.compr + readl(&cbd_q->channel_info->compr_tail));
+	return (struct cbd_ce *)(cbd_q->channel.compr + cbd_q->channel_info->compr_tail);
 }
 
 static inline struct cbd_se *get_se_head(struct cbd_backend_handler *handler)

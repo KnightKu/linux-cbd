@@ -36,7 +36,7 @@ static ssize_t cbd_host_alive_show(struct device *dev,
 	host = container_of(dev, struct cbd_host_device, dev);
 	host_info = host->host_info;
 
-	ts = readq(&host_info->alive_ts);
+	ts = host_info->alive_ts;
 	oldest = ktime_sub_ms(ktime_get_real(), 30 * 1000);
 	pr_err("ts: %llu, oldest: %llu", ts, oldest);
 

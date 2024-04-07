@@ -386,7 +386,7 @@ int cbd_transport_format(struct cbd_transport *cbdt, struct cbd_adm_options *opt
 	u64 magic;
 
 	mutex_lock(&cbdt->lock);
-	magic = readq(&info->magic);
+	magic = info->magic;
 	if (magic && !opts->force) {
 		mutex_unlock(&cbdt->lock);
 		return -EEXIST;
@@ -435,7 +435,7 @@ int cbdt_validate(struct cbd_transport *cbdt)
 	mutex_lock(&cbdt->lock);
 	info = cbdt->transport_info;
 
-	if (readq(&info->magic) != CBD_TRANSPORT_MAGIC) {
+	if (info->magic != CBD_TRANSPORT_MAGIC) {
 		ret = -EINVAL;
 		goto out;
 	}
@@ -468,7 +468,7 @@ ssize_t cbd_transport_info(struct cbd_transport *cbdt, char *buf)
 	mutex_lock(&cbdt->lock);
 	info = cbdt->transport_info;
 
-	magic = readq(&info->magic);
+	magic = info->magic;
 	mutex_unlock(&cbdt->lock);
 
 	if (magic != CBD_TRANSPORT_MAGIC) {
@@ -491,20 +491,20 @@ ssize_t cbd_transport_info(struct cbd_transport *cbdt, char *buf)
 			"bytes_per_channel: %u\n"	\
 			"channel_num: %u\n",
 			magic,
-			readw(&info->version),
-			readw(&info->flags),
-			readq(&info->host_area_off),
-			readl(&info->host_info_size),
-			readl(&info->host_num),
-			readq(&info->backend_area_off),
-			readl(&info->backend_info_size),
-			readl(&info->backend_num),
-			readq(&info->blkdev_area_off),
-			readl(&info->blkdev_info_size),
-			readl(&info->blkdev_num),
-			readq(&info->channel_area_off),
-			readl(&info->channel_size),
-			readl(&info->channel_num));
+			info->version,
+			info->flags,
+			info->host_area_off,
+			info->host_info_size,
+			info->host_num,
+			info->backend_area_off,
+			info->backend_info_size,
+			info->backend_num,
+			info->blkdev_area_off,
+			info->blkdev_info_size,
+			info->blkdev_num,
+			info->channel_area_off,
+			info->channel_size,
+			info->channel_num);
 
 	return ret;
 }
@@ -599,7 +599,7 @@ int cbdt_get_empty_hid(struct cbd_transport *cbdt, u32 *id)
 	int i;
 
 	mutex_lock(&cbdt->lock);
-	for (i = 0; i < readl(&info->host_num); i++) {
+	for (i = 0; i < info->host_num; i++) {
 		host_info = __get_host_info(cbdt, i);
 		if (host_info->status == cbd_host_status_none) {
 			*id = i;

@@ -12,7 +12,7 @@ static ssize_t cbd_channel_alive_show(struct device *dev,
 	channel = container_of(dev, struct cbd_channel_device, dev);
 	channel_info = channel->channel_info;
 
-	ts = readq(&channel_info->alive_ts);
+	ts = channel_info->alive_ts;
 	oldest = ktime_sub_ms(ktime_get_real(), 30 * 1000);
 
 	if (ktime_after(ts, oldest))
