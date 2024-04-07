@@ -670,7 +670,6 @@ static inline void *__get_blkdev_info(struct cbd_transport *cbdt, u32 id)
 void *cbdt_get_blkdev_info(struct cbd_transport *cbdt, u32 id)
 {
 	struct cbd_transport_info *info = cbdt->transport_info;
-	void *start = cbdt->transport_info;
 	void *addr;
 
 	mutex_lock(&cbdt->lock);
@@ -715,7 +714,6 @@ static inline void *__get_backend_info(struct cbd_transport *cbdt, u32 id)
 void *cbdt_get_backend_info(struct cbd_transport *cbdt, u32 id)
 {
 	struct cbd_transport_info *info = cbdt->transport_info;
-	void *start = cbdt->transport_info;
 	void *addr;
 
 	mutex_lock(&cbdt->lock);
