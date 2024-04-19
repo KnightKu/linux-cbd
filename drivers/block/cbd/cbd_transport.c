@@ -315,8 +315,19 @@ static ssize_t cbd_adm_store(struct device *dev,
 	case CBDT_ADM_OP_B_CLEAR:
 		break;
 	case CBDT_ADM_OP_DEV_START:
+		if (opts.blkdev.queues > CBD_QUEUES_MAX) {
+			cbdt_err(cbdt, "invalid queues = %u, larger than max %u\n",
+					opts.blkdev.queues, CBD_QUEUES_MAX);
+			return -EINVAL;
+		}
+		ret = cbd_blkdev_start(cbdt, opts.backend_id, opts.blkdev.queues);
+		if (ret < 0)
+			return ret;
 		break;
 	case CBDT_ADM_OP_DEV_STOP:
+		ret = cbd_blkdev_stop(cbdt, opts.blkdev.devid);
+		if (ret < 0)
+			return ret;
 		break;
 	default:
 		pr_err("invalid op: %d\n", opts.op);
