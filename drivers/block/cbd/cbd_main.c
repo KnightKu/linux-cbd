@@ -109,6 +109,10 @@ static ssize_t transport_unregister_store(const struct bus_type *bus, const char
 		return -EINVAL;
 	}
 
+	ret = cbdt_unregister(transport_id);
+	if (ret < 0)
+		return ret;
+
 	return size;
 }
 
@@ -135,6 +139,10 @@ static ssize_t transport_register_store(const struct bus_type *bus, const char *
 		return ret;
 	}
 	kfree(buf);
+
+	ret = cbdt_register(&opts);
+	if (ret < 0)
+		return ret;
 
 	return size;
 }
