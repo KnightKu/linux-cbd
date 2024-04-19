@@ -571,6 +571,7 @@ int cbdt_unregister(u32 tid)
 	}
 	mutex_unlock(&cbdt->lock);
 
+	cbd_host_unregister(cbdt);
 	device_unregister(&cbdt->device);
 	cbdt_dax_release(cbdt);
 	cbdt_destroy(cbdt);
@@ -618,8 +619,15 @@ int cbdt_register(struct cbdt_register_options *opts)
 		goto dax_release;
 	}
 
+	ret = cbd_host_register(cbdt, opts->hostname);
+	if (ret) {
+		goto dev_unregister;
+	}
+
 	return 0;
 
+devs_exit:
+	cbd_host_unregister(cbdt);
 dev_unregister:
 	device_unregister(&cbdt->device);
 dax_release:
