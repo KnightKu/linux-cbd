@@ -1,8 +1,91 @@
 #include <linux/pfn_t.h>
-
 #include "cbd_internal.h"
 
 #define CBDT_OBJ(OBJ, OBJ_SIZE)							\
+extern struct device_type cbd_##OBJ##_type;					\
+extern struct device_type cbd_##OBJ##s_type;					\
+										\
+static int cbd_##OBJ##s_init(struct cbd_transport *cbdt) 			\
+{ 										\
+	struct cbd_##OBJ##s_device *devs; 					\
+	struct cbd_##OBJ##_device *cbd_dev;					\
+	struct device *dev;							\
+	int i; 									\
+	int ret;								\
+										\
+	u32 memsize = struct_size(devs, OBJ##_devs,				\
+			cbdt->transport_info->OBJ##_num);			\
+	devs = kzalloc(memsize, GFP_KERNEL);					\
+	if (!devs) {								\
+	    return -ENOMEM;							\
+	}									\
+										\
+	dev = &devs->OBJ##s_dev;						\
+	device_initialize(dev);							\
+	device_set_pm_not_required(dev);					\
+	dev_set_name(dev, "cbd_" #OBJ "s");					\
+	dev->parent = &cbdt->device;						\
+	dev->type = &cbd_##OBJ##s_type;						\
+	ret = device_add(dev);							\
+	if (ret) {								\
+		goto devs_free;							\
+	}									\
+										\
+	for (i = 0; i < cbdt->transport_info->OBJ##_num; i++) {			\
+		cbd_dev = &devs->OBJ##_devs[i];					\
+		dev = &cbd_dev->dev;						\
+										\
+		cbd_dev->cbdt = cbdt;						\
+		cbd_dev->OBJ##_info = cbdt_get_##OBJ##_info(cbdt, i);		\
+		device_initialize(dev);						\
+		device_set_pm_not_required(dev);				\
+		dev_set_name(dev, #OBJ "%u", i);				\
+		dev->parent = &devs->OBJ##s_dev;				\
+		dev->type = &cbd_##OBJ##_type;					\
+										\
+		ret = device_add(dev);						\
+		if (ret) {							\
+			i--;							\
+			goto del_device;					\
+		}								\
+	}									\
+	cbdt->cbd_##OBJ##s_dev = devs;						\
+										\
+    	return 0;								\
+del_device:									\
+	for (; i >= 0; i--) {							\
+		cbd_dev = &devs->OBJ##_devs[i];					\
+		dev = &cbd_dev->dev;						\
+		device_del(dev);						\
+	}									\
+devs_free:									\
+	kfree(devs);								\
+	return ret;								\
+}										\
+										\
+static void cbd_##OBJ##s_exit(struct cbd_transport *cbdt)			\
+{										\
+	struct cbd_##OBJ##s_device *devs = cbdt->cbd_##OBJ##s_dev;		\
+	struct device *dev;							\
+	int i;									\
+										\
+	if (!devs)								\
+		return;								\
+										\
+	for (i = 0; i < cbdt->transport_info->OBJ##_num; i++) {			\
+		struct cbd_##OBJ##_device *cbd_dev = &devs->OBJ##_devs[i];	\
+		dev = &cbd_dev->dev;						\
+										\
+		device_del(dev);						\
+	}									\
+										\
+	device_del(&devs->OBJ##s_dev);						\
+										\
+	kfree(devs);								\
+	cbdt->cbd_##OBJ##s_dev = NULL;						\
+										\
+	return;									\
+}										\
 										\
 static inline struct cbd_##OBJ##_info						\
 *__get_##OBJ##_info(struct cbd_transport *cbdt, u32 id)				\
@@ -588,6 +671,11 @@ int cbdt_unregister(u32 tid)
 	}
 	mutex_unlock(&cbdt->lock);
 
+	cbd_blkdevs_exit(cbdt);
+	cbd_channels_exit(cbdt);
+	cbd_backends_exit(cbdt);
+	cbd_hosts_exit(cbdt);
+
 	cbd_host_unregister(cbdt);
 	device_unregister(&cbdt->device);
 	cbdt_dax_release(cbdt);
@@ -641,9 +729,20 @@ int cbdt_register(struct cbdt_register_options *opts)
 		goto dev_unregister;
 	}
 
+	if (cbd_hosts_init(cbdt) || cbd_backends_init(cbdt) ||
+	    cbd_channels_init(cbdt) || cbd_blkdevs_init(cbdt)) {
+		ret = -ENOMEM;
+		goto devs_exit;
+	}
+
 	return 0;
 
 devs_exit:
+	cbd_blkdevs_exit(cbdt);
+	cbd_channels_exit(cbdt);
+	cbd_backends_exit(cbdt);
+	cbd_hosts_exit(cbdt);
+
 	cbd_host_unregister(cbdt);
 dev_unregister:
 	device_unregister(&cbdt->device);
