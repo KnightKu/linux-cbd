@@ -195,6 +195,11 @@ static int __init cbd_init(void)
 		goto device_unregister;
 	}
 
+	ret = cbd_blkdev_init();
+	if (ret < 0) {
+		goto bus_unregister;
+	}
+
 	return 0;
 
 bus_unregister:
@@ -209,6 +214,7 @@ destroy_wq:
 
 static void cbd_exit(void)
 {
+	cbd_blkdev_exit();
 	bus_unregister(&cbd_bus_type);
 	device_unregister(&cbd_root_dev);
 
