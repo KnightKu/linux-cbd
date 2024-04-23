@@ -576,7 +576,7 @@ int cbd_queue_start(struct cbd_queue *cbdq)
 	INIT_DELAYED_WORK(&cbdq->complete_work, complete_work_fn);
 	cbdwc_init(&cbdq->complete_worker_cfg);
 
-	cbdq->released_extents = kmalloc(sizeof(u32) * (CBDC_DATA_SIZE >> PAGE_SHIFT), GFP_KERNEL);
+	cbdq->released_extents = kzalloc(sizeof(u32) * (CBDC_DATA_SIZE >> PAGE_SHIFT), GFP_KERNEL);
 	if (!cbdq->released_extents) {
 		ret = -ENOMEM;
 		goto err;
