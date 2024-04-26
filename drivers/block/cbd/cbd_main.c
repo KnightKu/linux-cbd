@@ -59,9 +59,9 @@ static int parse_register_options(
 		switch (token) {
 		case CBDT_REG_OPT_PATH:
 			if (match_strlcpy(opts->path, &args[0],
-			        CBD_PATH_LEN) == 0) {
-			        ret = -EINVAL;
-			        break;
+				CBD_PATH_LEN) == 0) {
+				ret = -EINVAL;
+				break;
 			}
 			break;
 		case CBDT_REG_OPT_FORCE:
@@ -80,9 +80,9 @@ static int parse_register_options(
 			break;
 		case CBDT_REG_OPT_HOSTNAME:
 			if (match_strlcpy(opts->hostname, &args[0],
-			        CBD_NAME_LEN) == 0) {
-			        ret = -EINVAL;
-			        break;
+				CBD_NAME_LEN) == 0) {
+				ret = -EINVAL;
+				break;
 			}
 			break;
 		default:
@@ -105,9 +105,8 @@ static ssize_t transport_unregister_store(const struct bus_type *bus, const char
 	if (!capable(CAP_SYS_ADMIN))
 		return -EPERM;
 
-	if (sscanf(ubuf, "transport_id=%u", &transport_id) != 1) {
+	if (sscanf(ubuf, "transport_id=%u", &transport_id) != 1)
 		return -EINVAL;
-	}
 
 	ret = cbdt_unregister(transport_id);
 	if (ret < 0)
@@ -180,9 +179,8 @@ static int __init cbd_init(void)
 	int ret;
 
 	cbd_wq = alloc_workqueue(CBD_DRV_NAME, WQ_MEM_RECLAIM, 0);
-	if (!cbd_wq) {
+	if (!cbd_wq)
 		return -ENOMEM;
-	}
 
 	ret = device_register(&cbd_root_dev);
 	if (ret < 0) {
@@ -191,14 +189,12 @@ static int __init cbd_init(void)
 	}
 
 	ret = bus_register(&cbd_bus_type);
-	if (ret < 0) {
+	if (ret < 0)
 		goto device_unregister;
-	}
 
 	ret = cbd_blkdev_init();
-	if (ret < 0) {
+	if (ret < 0)
 		goto bus_unregister;
-	}
 
 	return 0;
 
@@ -219,8 +215,6 @@ static void cbd_exit(void)
 	device_unregister(&cbd_root_dev);
 
 	destroy_workqueue(cbd_wq);
-
-	return;
 }
 
 MODULE_AUTHOR("Dongsheng Yang <dongsheng.yang.linux@gmail.com>");

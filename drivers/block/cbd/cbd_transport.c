@@ -5,19 +5,19 @@
 extern struct device_type cbd_##OBJ##_type;					\
 extern struct device_type cbd_##OBJ##s_type;					\
 										\
-static int cbd_##OBJ##s_init(struct cbd_transport *cbdt) 			\
-{ 										\
-	struct cbd_##OBJ##s_device *devs; 					\
+static int cbd_##OBJ##s_init(struct cbd_transport *cbdt)			\
+{										\
+	struct cbd_##OBJ##s_device *devs;					\
 	struct cbd_##OBJ##_device *cbd_dev;					\
 	struct device *dev;							\
-	int i; 									\
+	int i;									\
 	int ret;								\
 										\
 	u32 memsize = struct_size(devs, OBJ##_devs,				\
 			cbdt->transport_info->OBJ##_num);			\
 	devs = kzalloc(memsize, GFP_KERNEL);					\
 	if (!devs) {								\
-	    return -ENOMEM;							\
+		return -ENOMEM;							\
 	}									\
 										\
 	dev = &devs->OBJ##s_dev;						\
@@ -51,7 +51,7 @@ static int cbd_##OBJ##s_init(struct cbd_transport *cbdt) 			\
 	}									\
 	cbdt->cbd_##OBJ##s_dev = devs;						\
 										\
-    	return 0;								\
+	return 0;								\
 del_device:									\
 	for (; i >= 0; i--) {							\
 		cbd_dev = &devs->OBJ##_devs[i];					\
@@ -98,7 +98,7 @@ static inline struct cbd_##OBJ##_info						\
 	return start + (info->OBJ_SIZE * id);					\
 }										\
 										\
-struct cbd_##OBJ##_info 							\
+struct cbd_##OBJ##_info							\
 *cbdt_get_##OBJ##_info(struct cbd_transport *cbdt, u32 id)			\
 {										\
 	struct cbd_##OBJ##_info *info;						\
@@ -120,7 +120,6 @@ int cbdt_get_empty_##OBJ##_id(struct cbd_transport *cbdt, u32 *id)		\
 	mutex_lock(&cbdt->lock);						\
 	for (i = 0; i < info->OBJ##_num; i++) {					\
 		_info = __get_##OBJ##_info(cbdt, i);				\
-		cbdt_flush_range(cbdt, _info, sizeof(*_info));			\
 		if (_info->state == cbd_##OBJ##_state_none) {			\
 			*id = i;						\
 			goto out;						\
@@ -173,6 +172,8 @@ enum {
 	CBDT_ADM_OPT_BID,
 	CBDT_ADM_OPT_DID,
 	CBDT_ADM_OPT_QUEUES,
+	CBDT_ADM_OPT_HID,
+	CBDT_ADM_OPT_CID,
 };
 
 enum {
@@ -181,6 +182,9 @@ enum {
 	CBDT_ADM_OP_B_CLEAR,
 	CBDT_ADM_OP_DEV_START,
 	CBDT_ADM_OP_DEV_STOP,
+	CBDT_ADM_OP_DEV_CLEAR,
+	CBDT_ADM_OP_H_CLEAR,
+	CBDT_ADM_OP_C_CLEAR,
 };
 
 static const char *const adm_op_names[] = {
@@ -189,6 +193,9 @@ static const char *const adm_op_names[] = {
 	[CBDT_ADM_OP_B_CLEAR] = "backend-clear",
 	[CBDT_ADM_OP_DEV_START] = "dev-start",
 	[CBDT_ADM_OP_DEV_STOP] = "dev-stop",
+	[CBDT_ADM_OP_DEV_CLEAR] = "dev-clear",
+	[CBDT_ADM_OP_H_CLEAR] = "host-clear",
+	[CBDT_ADM_OP_C_CLEAR] = "channel-clear",
 };
 
 static const match_table_t adm_opt_tokens = {
@@ -196,8 +203,10 @@ static const match_table_t adm_opt_tokens = {
 	{ CBDT_ADM_OPT_FORCE,		"force=%u" },
 	{ CBDT_ADM_OPT_PATH,		"path=%s" },
 	{ CBDT_ADM_OPT_BID,		"backend_id=%u" },
-	{ CBDT_ADM_OPT_DID,		"devid=%u" },
+	{ CBDT_ADM_OPT_DID,		"dev_id=%u" },
 	{ CBDT_ADM_OPT_QUEUES,		"queues=%u" },
+	{ CBDT_ADM_OPT_HID,		"host_id=%u" },
+	{ CBDT_ADM_OPT_CID,		"channel_id=%u" },
 	{ CBDT_ADM_OPT_ERR,		NULL	}
 };
 
@@ -242,17 +251,17 @@ static int parse_adm_options(struct cbd_transport *cbdt,
 		case CBDT_ADM_OPT_OP:
 			ret = match_string(adm_op_names, ARRAY_SIZE(adm_op_names), args[0].from);
 			if (ret < 0) {
-				pr_err("unknown op: '%s'\n", args[0].from);
-			        ret = -EINVAL;
-			        break;
+				cbdt_err(cbdt, "unknown op: '%s'\n", args[0].from);
+				ret = -EINVAL;
+				break;
 			}
 			opts->op = ret;
 			break;
 		case CBDT_ADM_OPT_PATH:
 			if (match_strlcpy(opts->backend.path, &args[0],
-			        CBD_PATH_LEN) == 0) {
-			        ret = -EINVAL;
-			        break;
+				CBD_PATH_LEN) == 0) {
+				ret = -EINVAL;
+				break;
 			}
 			break;
 		case CBDT_ADM_OPT_FORCE:
@@ -283,8 +292,22 @@ static int parse_adm_options(struct cbd_transport *cbdt,
 			}
 			opts->blkdev.queues = token;
 			break;
+		case CBDT_ADM_OPT_HID:
+			if (match_uint(args, &token)) {
+				ret = -EINVAL;
+				goto out;
+			}
+			opts->host.hid = token;
+			break;
+		case CBDT_ADM_OPT_CID:
+			if (match_uint(args, &token)) {
+				ret = -EINVAL;
+				goto out;
+			}
+			opts->channel.cid = token;
+			break;
 		default:
-			pr_err("unknown parameter or missing value '%s'\n", p);
+			cbdt_err(cbdt, "unknown parameter or missing value '%s'\n", p);
 			ret = -EINVAL;
 			goto out;
 		}
@@ -297,7 +320,6 @@ out:
 static void transport_zero_range(struct cbd_transport *cbdt, void *pos, u64 size)
 {
 	memset(pos, 0, size);
-	cbdt_flush_range(cbdt, pos, size);
 }
 
 static void channels_format(struct cbd_transport *cbdt)
@@ -318,14 +340,13 @@ static int cbd_transport_format(struct cbd_transport *cbdt, bool force)
 	u64 magic;
 
 	magic = le64_to_cpu(info->magic);
-	if (magic && !force) {
+	if (magic && !force)
 		return -EEXIST;
-	}
 
 	/* TODO make these configureable */
 	info->magic = cpu_to_le64(CBD_TRANSPORT_MAGIC);
 	info->version = cpu_to_le16(CBD_TRANSPORT_VERSION);
-#if defined(__BYTE_ORDER) ? __BYTE_ORDER == __GIT_ENDIAN : defined(__BIG_ENDIAN)
+#if defined(__BYTE_ORDER) ? __BYTE_ORDER == __BIG_ENDIAN : defined(__BIG_ENDIAN)
 	info->flags = cpu_to_le16(CBDT_INFO_F_BIGENDIAN);
 #endif
 	info->host_area_off = CBDT_HOST_AREA_OFF;
@@ -344,8 +365,6 @@ static int cbd_transport_format(struct cbd_transport *cbdt, bool force)
 	info->channel_size = CBDT_CHANNEL_SIZE;
 	info->channel_num = CBDT_CHANNEL_NUM;
 
-	cbdt_flush_range(cbdt, info, sizeof(*info));
-
 	transport_zero_range(cbdt, (void *)info + info->host_area_off,
 			     info->channel_area_off - info->host_area_off);
 
@@ -356,15 +375,17 @@ static int cbd_transport_format(struct cbd_transport *cbdt, bool force)
 
 
 
-static ssize_t cbd_adm_store(struct device *dev,
-				 struct device_attribute *attr,
-				 const char *ubuf,
-				 size_t size)
+static ssize_t adm_store(struct device *dev,
+			struct device_attribute *attr,
+			const char *ubuf,
+			size_t size)
 {
 	int ret;
 	char *buf;
 	struct cbd_adm_options opts = { 0 };
 	struct cbd_transport *cbdt;
+
+	opts.backend_id = U32_MAX;
 
 	if (!capable(CAP_SYS_ADMIN))
 		return -EPERM;
@@ -373,7 +394,7 @@ static ssize_t cbd_adm_store(struct device *dev,
 
 	buf = kmemdup(ubuf, size + 1, GFP_KERNEL);
 	if (IS_ERR(buf)) {
-		pr_err("failed to dup buf for adm option: %d", (int)PTR_ERR(buf));
+		cbdt_err(cbdt, "failed to dup buf for adm option: %d", (int)PTR_ERR(buf));
 		return PTR_ERR(buf);
 	}
 	buf[size] = '\0';
@@ -386,16 +407,19 @@ static ssize_t cbd_adm_store(struct device *dev,
 
 	switch (opts.op) {
 	case CBDT_ADM_OP_B_START:
-		ret = cbd_backend_start(cbdt, opts.backend.path);
+		ret = cbd_backend_start(cbdt, opts.backend.path, opts.backend_id);
 		if (ret < 0)
 			return ret;
 		break;
 	case CBDT_ADM_OP_B_STOP:
-		ret = cbd_backend_stop(cbdt, opts.backend_id);
+		ret = cbd_backend_stop(cbdt, opts.backend_id, opts.force);
 		if (ret < 0)
 			return ret;
 		break;
 	case CBDT_ADM_OP_B_CLEAR:
+		ret = cbd_backend_clear(cbdt, opts.backend_id);
+		if (ret < 0)
+			return ret;
 		break;
 	case CBDT_ADM_OP_DEV_START:
 		if (opts.blkdev.queues > CBD_QUEUES_MAX) {
@@ -408,12 +432,27 @@ static ssize_t cbd_adm_store(struct device *dev,
 			return ret;
 		break;
 	case CBDT_ADM_OP_DEV_STOP:
-		ret = cbd_blkdev_stop(cbdt, opts.blkdev.devid);
+		ret = cbd_blkdev_stop(cbdt, opts.blkdev.devid, opts.force);
+		if (ret < 0)
+			return ret;
+		break;
+	case CBDT_ADM_OP_DEV_CLEAR:
+		ret = cbd_blkdev_clear(cbdt, opts.blkdev.devid);
+		if (ret < 0)
+			return ret;
+		break;
+	case CBDT_ADM_OP_H_CLEAR:
+		ret = cbd_host_clear(cbdt, opts.host.hid);
+		if (ret < 0)
+			return ret;
+		break;
+	case CBDT_ADM_OP_C_CLEAR:
+		ret = cbd_channel_clear(cbdt, opts.channel.cid);
 		if (ret < 0)
 			return ret;
 		break;
 	default:
-		pr_err("invalid op: %d\n", opts.op);
+		cbdt_err(cbdt, "invalid op: %d\n", opts.op);
 		return -EINVAL;
 	}
 
@@ -423,7 +462,7 @@ static ssize_t cbd_adm_store(struct device *dev,
 	return size;
 }
 
-static DEVICE_ATTR(adm, 0200, NULL, cbd_adm_store);
+static DEVICE_ATTR_WO(adm);
 
 static ssize_t cbd_transport_info(struct cbd_transport *cbdt, char *buf)
 {
@@ -434,20 +473,20 @@ static ssize_t cbd_transport_info(struct cbd_transport *cbdt, char *buf)
 	info = cbdt->transport_info;
 	mutex_unlock(&cbdt->lock);
 
-	ret = sprintf(buf, "magic: 0x%llx\n"		\
-			"version: %u\n"			\
-			"flags: %x\n\n"			\
-			"host_area_off: %llu\n"		\
-			"bytes_per_host_info: %u\n"	\
-			"host_num: %u\n\n"		\
-			"backend_area_off: %llu\n"	\
-			"bytes_per_backend_info: %u\n"	\
-			"backend_num: %u\n\n"		\
-			"blkdev_area_off: %llu\n"	\
-			"bytes_per_blkdev_info: %u\n"	\
-			"blkdev_num: %u\n\n"		\
-			"channel_area_off: %llu\n"	\
-			"bytes_per_channel: %u\n"	\
+	ret = sprintf(buf, "magic: 0x%llx\n"
+			"version: %u\n"
+			"flags: %x\n\n"
+			"host_area_off: %llu\n"
+			"bytes_per_host_info: %u\n"
+			"host_num: %u\n\n"
+			"backend_area_off: %llu\n"
+			"bytes_per_backend_info: %u\n"
+			"backend_num: %u\n\n"
+			"blkdev_area_off: %llu\n"
+			"bytes_per_blkdev_info: %u\n"
+			"blkdev_num: %u\n\n"
+			"channel_area_off: %llu\n"
+			"bytes_per_channel: %llu\n"
 			"channel_num: %u\n",
 			le64_to_cpu(info->magic),
 			le16_to_cpu(info->version),
@@ -529,15 +568,13 @@ static struct cbd_transport *cbdt_alloc(void)
 	int ret;
 
 	cbdt = kzalloc(sizeof(struct cbd_transport), GFP_KERNEL);
-	if (!cbdt) {
+	if (!cbdt)
 		return NULL;
-	}
 
 	ret = ida_simple_get(&cbd_transport_id_ida, 0, CBD_TRANSPORT_MAX,
 				GFP_KERNEL);
-	if (ret < 0) {
+	if (ret < 0)
 		goto cbdt_free;
-	}
 
 	cbdt->id = ret;
 	cbd_transports[cbdt->id] = cbdt;
@@ -559,27 +596,27 @@ static void cbdt_destroy(struct cbd_transport *cbdt)
 static int cbdt_dax_init(struct cbd_transport *cbdt, char *path)
 {
 	struct dax_device *dax_dev = NULL;
-	struct bdev_handle *handle = NULL;
+	struct file *bdev_file = NULL;
 	long access_size;
 	void *kaddr;
 	u64 nr_pages = CBD_TRASNPORT_SIZE >> PAGE_SHIFT;
 	u64 start_off = 0;
 	int ret;
 
-	handle = bdev_open_by_path(path, BLK_OPEN_READ | BLK_OPEN_WRITE, cbdt, NULL);
-	if (IS_ERR(handle)) {
-		pr_err("%s: failed blkdev_get_by_path(%s)\n", __func__, path);
-		ret = PTR_ERR(handle);
+	bdev_file = bdev_file_open_by_path(path, BLK_OPEN_READ | BLK_OPEN_WRITE, cbdt, NULL);
+	if (IS_ERR(bdev_file)) {
+		cbdt_err(cbdt, "%s: failed blkdev_get_by_path(%s)\n", __func__, path);
+		ret = PTR_ERR(bdev_file);
 		goto err;
 	}
 
-	dax_dev = fs_dax_get_by_bdev(handle->bdev, &start_off,
+	dax_dev = fs_dax_get_by_bdev(file_bdev(bdev_file), &start_off,
 				     cbdt,
 				     &cbd_dax_holder_ops);
 	if (IS_ERR(dax_dev)) {
-		pr_err("%s: unable to get daxdev from handle->bdev\n", __func__);
+		cbdt_err(cbdt, "%s: unable to get daxdev from bdev_file\n", __func__);
 		ret = -ENODEV;
-		goto bdev_release;
+		goto fput;
 	}
 
 	access_size = dax_direct_access(dax_dev, 0, nr_pages, DAX_ACCESS, &kaddr, NULL);
@@ -588,7 +625,7 @@ static int cbdt_dax_init(struct cbd_transport *cbdt, char *path)
 		goto dax_put;
 	}
 
-	cbdt->bdev_handle = handle;
+	cbdt->bdev_file = bdev_file;
 	cbdt->dax_dev = dax_dev;
 	cbdt->transport_info = (struct cbd_transport_info *)kaddr;
 
@@ -596,8 +633,8 @@ static int cbdt_dax_init(struct cbd_transport *cbdt, char *path)
 
 dax_put:
 	fs_put_dax(dax_dev, cbdt);
-bdev_release:
-	bdev_release(handle);
+fput:
+	fput(bdev_file);
 err:
 	return ret;
 }
@@ -607,8 +644,8 @@ static void cbdt_dax_release(struct cbd_transport *cbdt)
 	if (cbdt->dax_dev)
 		fs_put_dax(cbdt->dax_dev, cbdt);
 
-	if (cbdt->bdev_handle)
-		bdev_release(cbdt->bdev_handle);
+	if (cbdt->bdev_file)
+		fput(cbdt->bdev_file);
 }
 
 static int cbd_transport_init(struct cbd_transport *cbdt)
@@ -636,19 +673,16 @@ static int cbdt_validate(struct cbd_transport *cbdt)
 {
 	u16 flags;
 
-	if (le64_to_cpu(cbdt->transport_info->magic) != CBD_TRANSPORT_MAGIC) {
+	if (le64_to_cpu(cbdt->transport_info->magic) != CBD_TRANSPORT_MAGIC)
 		return -EINVAL;
-	}
 
 	flags = le16_to_cpu(cbdt->transport_info->flags);
-#if defined(__BYTE_ORDER) ? __BYTE_ORDER == __GIT_ENDIAN : defined(__BIG_ENDIAN)
-	if (!(flags & CBDT_INFO_F_BIGENDIAN)) {
+#if defined(__BYTE_ORDER) ? __BYTE_ORDER == __BIG_ENDIAN : defined(__BIG_ENDIAN)
+	if (!(flags & CBDT_INFO_F_BIGENDIAN))
 		return -EINVAL;
-	}
 #else
-	if ((flags & CBDT_INFO_F_BIGENDIAN)) {
+	if ((flags & CBDT_INFO_F_BIGENDIAN))
 		return -EINVAL;
-	}
 #endif
 
 	return 0;
@@ -709,31 +743,26 @@ int cbdt_register(struct cbdt_register_options *opts)
 	}
 
 	ret = cbdt_dax_init(cbdt, opts->path);
-	if (ret) {
+	if (ret)
 		goto cbdt_destroy;
-	}
 
 	if (opts->format) {
 		ret = cbd_transport_format(cbdt, opts->force);
-		if (ret < 0) {
+		if (ret < 0)
 			goto dax_release;
-		}
 	}
 
 	ret = cbdt_validate(cbdt);
-	if (ret) {
+	if (ret)
 		goto dax_release;
-	}
 
 	ret = cbd_transport_init(cbdt);
-	if (ret) {
+	if (ret)
 		goto dax_release;
-	}
 
 	ret = cbd_host_register(cbdt, opts->hostname);
-	if (ret) {
+	if (ret)
 		goto dev_unregister;
-	}
 
 	if (cbd_hosts_init(cbdt) || cbd_backends_init(cbdt) ||
 	    cbd_channels_init(cbdt) || cbd_blkdevs_init(cbdt)) {
@@ -785,9 +814,8 @@ struct cbd_backend *cbdt_get_backend(struct cbd_transport *cbdt, u32 id)
 
 	mutex_lock(&cbdt->lock);
 	list_for_each_entry(backend, &cbdt->backends, node) {
-		if (backend->backend_id == id) {
+		if (backend->backend_id == id)
 			goto out;
-		}
 	}
 	backend = NULL;
 out:
@@ -802,14 +830,23 @@ void cbdt_add_blkdev(struct cbd_transport *cbdt, struct cbd_blkdev *blkdev)
 	mutex_unlock(&cbdt->lock);
 }
 
-struct cbd_blkdev *cbdt_fetch_blkdev(struct cbd_transport *cbdt, u32 id)
+void cbdt_del_blkdev(struct cbd_transport *cbdt, struct cbd_blkdev *blkdev)
+{
+	if (list_empty(&blkdev->node))
+		return;
+
+	mutex_lock(&cbdt->lock);
+	list_del_init(&blkdev->node);
+	mutex_unlock(&cbdt->lock);
+}
+
+struct cbd_blkdev *cbdt_get_blkdev(struct cbd_transport *cbdt, u32 id)
 {
 	struct cbd_blkdev *dev;
 
 	mutex_lock(&cbdt->lock);
 	list_for_each_entry(dev, &cbdt->devices, node) {
 		if (dev->blkdev_id == id) {
-			list_del(&dev->node);
 			goto out;
 		}
 	}
@@ -819,27 +856,18 @@ out:
 	return dev;
 }
 
-struct page *cbdt_page(struct cbd_transport *cbdt, u64 transport_off)
+struct page *cbdt_page(struct cbd_transport *cbdt, u64 transport_off, u32 *page_off)
 {
 	long access_size;
 	pfn_t pfn;
 
-	access_size = dax_direct_access(cbdt->dax_dev, transport_off >> PAGE_SHIFT, 1, DAX_ACCESS, NULL, &pfn);
+	access_size = dax_direct_access(cbdt->dax_dev, transport_off >> PAGE_SHIFT,
+					1, DAX_ACCESS, NULL, &pfn);
+	if (access_size < 0)
+		return NULL;
+
+	if (page_off)
+		*page_off = transport_off & PAGE_MASK;
 
 	return pfn_t_to_page(pfn);
-}
-
-void cbdt_flush_range(struct cbd_transport *cbdt, void *pos, u64 size)
-{
-	u64 offset = pos - (void *)cbdt->transport_info;
-	u32 off_in_page = (offset & CBD_PAGE_MASK);
-
-	offset -= off_in_page;
-	size = round_up(off_in_page + size, PAGE_SIZE);
-
-	while (size) {
-		flush_dcache_page(cbdt_page(cbdt, offset));
-		offset += PAGE_SIZE;
-		size -= PAGE_SIZE;
-	}
 }

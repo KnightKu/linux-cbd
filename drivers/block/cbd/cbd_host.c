@@ -10,8 +10,6 @@ static ssize_t cbd_host_name_show(struct device *dev,
 	host = container_of(dev, struct cbd_host_device, dev);
 	host_info = host->host_info;
 
-	cbdt_flush_range(host->cbdt, host_info, sizeof(*host_info));
-
 	if (host_info->state == cbd_host_state_none)
 		return 0;
 
@@ -62,23 +60,19 @@ int cbd_host_register(struct cbd_transport *cbdt, char *hostname)
 	u32 host_id;
 	int ret;
 
-	if (cbdt->host) {
+	if (cbdt->host)
 		return -EEXIST;
-	}
 
-	if (strlen(hostname) == 0) {
+	if (strlen(hostname) == 0)
 		return -EINVAL;
-	}
 
 	ret = cbdt_get_empty_host_id(cbdt, &host_id);
-	if (ret < 0) {
+	if (ret < 0)
 		return ret;
-	}
 
 	host = kzalloc(sizeof(struct cbd_host), GFP_KERNEL);
-	if (!host) {
+	if (!host)
 		return -ENOMEM;
-	}
 
 	host->host_id = host_id;
 	host->cbdt = cbdt;
@@ -87,8 +81,6 @@ int cbd_host_register(struct cbd_transport *cbdt, char *hostname)
 	host_info = cbdt_get_host_info(cbdt, host_id);
 	host_info->state = cbd_host_state_running;
 	memcpy(host_info->hostname, hostname, CBD_NAME_LEN);
-
-	cbdt_flush_range(cbdt, host_info, sizeof(*host_info));
 
 	host->host_info = host_info;
 	cbdt->host = host;
@@ -114,10 +106,26 @@ int cbd_host_unregister(struct cbd_transport *cbdt)
 	host_info->alive_ts = 0;
 	host_info->state = cbd_host_state_none;
 
-	cbdt_flush_range(cbdt, host_info, sizeof(*host_info));
-
 	cbdt->host = NULL;
 	kfree(cbdt->host);
+
+	return 0;
+}
+
+int cbd_host_clear(struct cbd_transport *cbdt, u32 host_id)
+{
+	struct cbd_host_info *host_info;
+
+	host_info = cbdt_get_host_info(cbdt, host_id);
+	if (host_info_is_alive(host_info)) {
+		cbdt_err(cbdt, "host %u is still alive\n", host_id);
+		return -EBUSY;
+	}
+
+	if (host_info->state == cbd_host_state_none)
+		return 0;
+
+	host_info->state = cbd_host_state_none;
 
 	return 0;
 }

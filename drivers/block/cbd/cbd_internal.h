@@ -19,6 +19,7 @@
 #include <linux/workqueue.h>
 #include <linux/uuid.h>
 #include <linux/bitfield.h>
+#include <linux/crc32.h>
 
 /*
  * As shared memory is supported in CXL3.0 spec, we can transfer data via CXL shared memory.
@@ -119,10 +120,6 @@
 	cbdt_debug(channel->cbdt, "channel%d: " fmt,				\
 		 channel->channel_id, ##__VA_ARGS__)
 
-#define CBD_PAGE_SHIFT		12
-#define CBD_PAGE_SIZE		(1 << CBD_PAGE_SHIFT)
-#define CBD_PAGE_MASK		(CBD_PAGE_SIZE - 1)
-
 #define CBD_TRANSPORT_MAX	1024
 #define CBD_PATH_LEN	512
 #define CBD_NAME_LEN	32
@@ -173,18 +170,21 @@
 
 /* cbd channel */
 #define CBD_OP_ALIGN_SIZE	sizeof(u64)
-#define CBDC_META_SIZE		(1024 * CBD_PAGE_SIZE)
-#define CBDC_CMDR_RESERVED	CBD_OP_ALIGN_SIZE
+#define CBDC_META_SIZE		(1024 * PAGE_SIZE)
+#define CBDC_CMDR_RESERVED	sizeof(struct cbd_se)
 #define CBDC_CMPR_RESERVED	sizeof(struct cbd_ce)
 
+#define CBDC_DATA_ALIGH		4096
+#define CBDC_DATA_RESERVED	CBDC_DATA_ALIGH
+
 #define CBDC_CTRL_OFF		0
-#define CBDC_CTRL_SIZE		CBD_PAGE_SIZE
+#define CBDC_CTRL_SIZE		PAGE_SIZE
 #define CBDC_COMPR_OFF		(CBDC_CTRL_OFF + CBDC_CTRL_SIZE)
 #define CBDC_COMPR_SIZE		(sizeof(struct cbd_ce) * 1024)
 #define CBDC_CMDR_OFF		(CBDC_COMPR_OFF + CBDC_COMPR_SIZE)
 #define CBDC_CMDR_SIZE		(CBDC_META_SIZE - CBDC_CMDR_OFF)
 
-#define CBDC_DATA_OFF		(CBDC_CMDR_OFF + CBDC_CMDR_SIZE)
+#define CBDC_DATA_OFF		CBDC_META_SIZE
 #define CBDC_DATA_SIZE		(16 * 1024 * 1024)
 #define CBDC_DATA_MASK		0xFFFFFF
 
@@ -199,18 +199,18 @@
 #define CBD_TRANSPORT_VERSION		1
 
 #define CBDT_INFO_OFF			0
-#define CBDT_INFO_SIZE			CBD_PAGE_SIZE
+#define CBDT_INFO_SIZE			PAGE_SIZE
 
 #define CBDT_HOST_AREA_OFF		(CBDT_INFO_OFF + CBDT_INFO_SIZE)
-#define CBDT_HOST_INFO_SIZE		CBD_PAGE_SIZE
+#define CBDT_HOST_INFO_SIZE		PAGE_SIZE
 #define CBDT_HOST_NUM			16
 
 #define CBDT_BACKEND_AREA_OFF		(CBDT_HOST_AREA_OFF + (CBDT_HOST_INFO_SIZE * CBDT_HOST_NUM))
-#define CBDT_BACKEND_INFO_SIZE		CBD_PAGE_SIZE
+#define CBDT_BACKEND_INFO_SIZE		PAGE_SIZE
 #define CBDT_BACKEND_NUM		16
 
 #define CBDT_BLKDEV_AREA_OFF		(CBDT_BACKEND_AREA_OFF + (CBDT_BACKEND_INFO_SIZE * CBDT_BACKEND_NUM))
-#define CBDT_BLKDEV_INFO_SIZE		CBD_PAGE_SIZE
+#define CBDT_BLKDEV_INFO_SIZE		PAGE_SIZE
 #define CBDT_BLKDEV_NUM			16
 
 #define CBDT_CHANNEL_AREA_OFF		(CBDT_BLKDEV_AREA_OFF + (CBDT_BLKDEV_INFO_SIZE * CBDT_BLKDEV_NUM))
@@ -276,8 +276,11 @@ struct cbd_## OBJ ##_device {				\
 struct cbd_## OBJ ##s_device {				\
 	struct device OBJ ##s_dev;			\
 	struct cbd_## OBJ ##_device OBJ ##_devs[];	\
-};
+}
 
+struct cbd_obj_ops {
+	void (*heart_beat)(void *cbd_obj);
+};
 
 /* cbd_worker_cfg*/
 struct cbd_worker_cfg {
@@ -317,8 +320,6 @@ static inline void cbdwc_hit(struct cbd_worker_cfg *cfg)
 
 	if (cfg->busy_retry_count > cfg->busy_retry_max)
 		cfg->busy_retry_count = cfg->busy_retry_max;
-
-	return;
 }
 
 /* reset retry_cur and decrease busy_retry_count */
@@ -337,8 +338,6 @@ static inline void cbdwc_miss(struct cbd_worker_cfg *cfg)
 		delta = cfg->busy_retry_count;
 
 	cfg->busy_retry_count -= delta;
-
-	return;
 }
 
 static inline bool cbdwc_need_retry(struct cbd_worker_cfg *cfg)
@@ -353,7 +352,7 @@ static inline bool cbdwc_need_retry(struct cbd_worker_cfg *cfg)
 }
 
 /* cbd_transport */
-#define CBDT_INFO_F_BIGENDIAN		1 << 0
+#define CBDT_INFO_F_BIGENDIAN		(1 << 0)
 
 struct cbd_transport_info {
 	__le64 magic;
@@ -373,7 +372,7 @@ struct cbd_transport_info {
 	u32 blkdev_num;
 
 	u64 channel_area_off;
-	u32 channel_size;
+	u64 channel_size;
 	u32 channel_num;
 };
 
@@ -394,7 +393,7 @@ struct cbd_transport {
 	struct cbd_blkdevs_device *cbd_blkdevs_dev;
 
 	struct dax_device *dax_dev;
-	struct bdev_handle   *bdev_handle;
+	struct file *bdev_file;
 };
 
 struct cbdt_register_options {
@@ -425,10 +424,10 @@ void cbdt_add_backend(struct cbd_transport *cbdt, struct cbd_backend *cbdb);
 void cbdt_del_backend(struct cbd_transport *cbdt, struct cbd_backend *cbdb);
 struct cbd_backend *cbdt_get_backend(struct cbd_transport *cbdt, u32 id);
 void cbdt_add_blkdev(struct cbd_transport *cbdt, struct cbd_blkdev *blkdev);
-struct cbd_blkdev *cbdt_fetch_blkdev(struct cbd_transport *cbdt, u32 id);
+void cbdt_del_blkdev(struct cbd_transport *cbdt, struct cbd_blkdev *blkdev);
+struct cbd_blkdev *cbdt_get_blkdev(struct cbd_transport *cbdt, u32 id);
 
-struct page *cbdt_page(struct cbd_transport *cbdt, u64 transport_off);
-void cbdt_flush_range(struct cbd_transport *cbdt, void *pos, u64 size);
+struct page *cbdt_page(struct cbd_transport *cbdt, u64 transport_off, u32 *page_off);
 
 /* cbd_host */
 CBD_DEVICE(host);
@@ -451,10 +450,12 @@ struct cbd_host {
 	struct cbd_host_device	*dev;
 	struct cbd_host_info	*host_info;
 	struct delayed_work	hb_work; /* heartbeat work */
+	struct cbd_obj_ops	*ops;
 };
 
 int cbd_host_register(struct cbd_transport *cbdt, char *hostname);
 int cbd_host_unregister(struct cbd_transport *cbdt);
+int cbd_host_clear(struct cbd_transport *cbdt, u32 host_id);
 
 /* cbd_channel */
 CBD_DEVICE(channel);
@@ -486,14 +487,16 @@ struct cbd_channel_info {
 	u32	backend_id;
 
 	u32	cmdr_off;
-	u32 	cmdr_size;
-	u32 	cmd_head;
-	u32 	cmd_tail;
+	u32	cmdr_size;
+	u32	cmdr_head;
+	u32	cmdr_tail;
 
-	u32 	compr_head;
-	u32 	compr_tail;
-	u32 	compr_off;
-	u32 	compr_size;
+	u32	compr_head;
+	u32	compr_tail;
+	u32	compr_off;
+	u32	compr_size;
+
+	u64	alive_ts;
 };
 
 struct cbd_channel {
@@ -509,9 +512,9 @@ struct cbd_channel {
 	void				*compr;
 	void				*data;
 
-	u32				data_size;
-	u32				data_head;
-	u32				data_tail;
+	u64				data_size;
+	u64				data_head;
+	u64				data_tail;
 
 	spinlock_t			cmdr_lock;
 	spinlock_t			compr_lock;
@@ -519,10 +522,12 @@ struct cbd_channel {
 
 void cbd_channel_init(struct cbd_channel *channel, struct cbd_transport *cbdt, u32 channel_id);
 void cbdc_copy_from_bio(struct cbd_channel *channel,
-		u32 data_off, u32 data_len, struct bio *bio);
+		u64 data_off, u32 data_len, struct bio *bio);
 void cbdc_copy_to_bio(struct cbd_channel *channel,
-		u32 data_off, u32 data_len, struct bio *bio);
-void cbdc_flush_ctrl(struct cbd_channel *channel);
+		u64 data_off, u32 data_len, struct bio *bio);
+u32 cbd_channel_crc(struct cbd_channel *channel, u64 data_off, u32 data_len);
+void cbdc_hb(struct cbd_channel *channel);
+int cbd_channel_clear(struct cbd_transport *cbdt, u32 channel_id);
 
 /* cbd_handler */
 struct cbd_handler {
@@ -532,13 +537,13 @@ struct cbd_handler {
 	struct cbd_channel	channel;
 
 	u32			se_to_handle;
+	u64			req_tid_expected;
 
 	struct delayed_work	handle_work;
 	struct cbd_worker_cfg	handle_worker_cfg;
 
 	struct list_head	handlers_node;
 	struct bio_set		bioset;
-	struct workqueue_struct *handle_wq;
 };
 
 void cbd_handler_destroy(struct cbd_handler *handler);
@@ -568,14 +573,15 @@ struct cbd_backend {
 	char			path[CBD_PATH_LEN];
 	struct cbd_transport	*cbdt;
 	struct cbd_backend_info *backend_info;
-	struct mutex 		lock;
+	struct mutex		lock;
 
 	struct block_device	*bdev;
-	struct bdev_handle	*bdev_handle;
+	struct file		*bdev_file;
 
 	struct workqueue_struct	*task_wq;  /* workqueue for request work */
 	struct delayed_work	state_work;
 	struct delayed_work	hb_work; /* heartbeat work */
+	struct cbd_obj_ops	*ops;
 
 	struct list_head	node; /* cbd_transport->backends */
 	struct list_head	handlers;
@@ -583,15 +589,15 @@ struct cbd_backend {
 	struct cbd_backend_device *backend_device;
 };
 
-int cbd_backend_start(struct cbd_transport *cbdt, char *path);
-int cbd_backend_stop(struct cbd_transport *cbdt, u32 backend_id);
+int cbd_backend_start(struct cbd_transport *cbdt, char *path, u32 backend_id);
+int cbd_backend_stop(struct cbd_transport *cbdt, u32 backend_id, bool force);
+int cbd_backend_clear(struct cbd_transport *cbdt, u32 backend_id);
 void cbdb_add_handler(struct cbd_backend *cbdb, struct cbd_handler *handler);
 void cbdb_del_handler(struct cbd_backend *cbdb, struct cbd_handler *handler);
 
 /* cbd_queue */
 enum cbd_op {
-	CBD_OP_PAD = 0,
-	CBD_OP_WRITE,
+	CBD_OP_WRITE = 0,
 	CBD_OP_READ,
 	CBD_OP_DISCARD,
 	CBD_OP_WRITE_ZEROS,
@@ -599,29 +605,44 @@ enum cbd_op {
 };
 
 struct cbd_se_hdr {
-	u32 len_op;
+	u32 op;
 	u32 flags;
-
 };
 
 struct cbd_se {
-	struct cbd_se_hdr	header;
-	u64			priv_data;	// pointer to cbd_request
+#ifdef CONFIG_CBD_CRC
+	u32			se_crc;		/* should be the first member */
+	u32			data_crc;
+#endif
+	u32			op;
+	u32			flags;
+	u64			req_tid;
 
 	u64			offset;
 	u32			len;
 
-	u32			data_off;
+	u64			data_off;
 	u32			data_len;
 };
 
-
 struct cbd_ce {
-	u64		priv_data;	// copied from submit entry
+#ifdef CONFIG_CBD_CRC
+	u32		ce_crc;		/* should be the first member */
+#endif
+	u64		req_tid;
 	u32		result;
 	u32		flags;
 };
 
+static inline u32 cbd_se_crc(struct cbd_se *se)
+{
+	return crc32(0, (void *)se + 4, sizeof(*se) - 4);
+}
+
+static inline u32 cbd_ce_crc(struct cbd_ce *ce)
+{
+	return crc32(0, (void *)ce + 4, sizeof(*ce) - 4);
+}
 
 struct cbd_request {
 	struct cbd_queue	*cbdq;
@@ -634,52 +655,28 @@ struct cbd_request {
 	u64			req_tid;
 	struct list_head	inflight_reqs_node;
 
-	u32			data_off;
+	u64			data_off;
 	u32			data_len;
 
 	struct work_struct	work;
 };
 
-#define CBD_OP_MASK 0xff
-#define CBD_OP_SHIFT 8
+#define CBD_SE_FLAGS_DONE	1
 
-static inline enum cbd_op cbd_se_hdr_get_op(__le32 len_op)
+static inline bool cbd_se_flags_test(struct cbd_se *se, u32 bit)
 {
-       return (enum cbd_op)(len_op & CBD_OP_MASK);
+	return (se->flags & bit);
 }
 
-static inline void cbd_se_hdr_set_op(u32 *len_op, enum cbd_op op)
+static inline void cbd_se_flags_set(struct cbd_se *se, u32 bit)
 {
-       *len_op &= ~CBD_OP_MASK;
-       *len_op |= (op & CBD_OP_MASK);
-}
-
-static inline u32 cbd_se_hdr_get_len(u32 len_op)
-{
-	return len_op >> CBD_OP_SHIFT;
-}
-
-static inline void cbd_se_hdr_set_len(u32 *len_op, u32 len)
-{
-	*len_op &= CBD_OP_MASK;
-	*len_op |= (len << CBD_OP_SHIFT);
-}
-
-#define CBD_SE_HDR_DONE	1
-
-static inline bool cbd_se_hdr_flags_test(struct cbd_se *se, u32 bit)
-{
-	return (se->header.flags & bit);
-}
-
-static inline void cbd_se_hdr_flags_set(struct cbd_se *se, u32 bit)
-{
-	se->header.flags |= bit;
+	se->flags |= bit;
 }
 
 enum cbd_queue_state {
 	cbd_queue_state_none	= 0,
-	cbd_queue_state_running
+	cbd_queue_state_running,
+	cbd_queue_state_removing
 };
 
 struct cbd_queue {
@@ -692,12 +689,11 @@ struct cbd_queue {
 	spinlock_t		inflight_reqs_lock;
 	u64			req_tid;
 
-	u32			*released_extents;
+	u64			*released_extents;
 
 	u32			channel_id;
 	struct cbd_channel_info	*channel_info;
 	struct cbd_channel	channel;
-	struct workqueue_struct	*task_wq;  /* workqueue for request work */
 
 	atomic_t		state;
 
@@ -714,7 +710,8 @@ CBD_DEVICE(blkdev);
 
 enum cbd_blkdev_state {
 	cbd_blkdev_state_none	= 0,
-	cbd_blkdev_state_running
+	cbd_blkdev_state_running,
+	cbd_blkdev_state_removing
 };
 
 struct cbd_blkdev_info {
@@ -734,32 +731,24 @@ struct cbd_blkdev {
 	int			minor;
 	struct gendisk		*disk;		/* blkdev's gendisk and rq */
 
-	spinlock_t		lock;		/* open_count */
+	struct mutex		lock;
+	unsigned long		open_count;	/* protected by lock */
+
 	struct list_head	node;
-	struct mutex		state_lock;
 	struct delayed_work	hb_work; /* heartbeat work */
+	struct cbd_obj_ops	*ops;
 
 	/* Block layer tags. */
 	struct blk_mq_tag_set	tag_set;
-
-	unsigned long		open_count;	/* protected by lock */
 
 	uint32_t		num_queues;
 	struct cbd_queue	*queues;
 
 	u64			dev_size;
-	u64			dev_features;
-	u32			io_timeout;
 
-	u8			state;
-	u32			state_flags;
-	struct kref		kref;
+	atomic_t		state;
 
-	void			*cmdr;
-	void			*compr;
-	spinlock_t		cmdr_lock;
-	spinlock_t		compr_lock;
-	void			*data;
+	struct workqueue_struct	*task_wq;
 
 	struct cbd_blkdev_device *blkdev_dev;
 	struct cbd_blkdev_info *blkdev_info;
@@ -770,7 +759,8 @@ struct cbd_blkdev {
 int cbd_blkdev_init(void);
 void cbd_blkdev_exit(void);
 int cbd_blkdev_start(struct cbd_transport *cbdt, u32 backend_id, u32 queues);
-int cbd_blkdev_stop(struct cbd_transport *cbdt, u32 devid);
+int cbd_blkdev_stop(struct cbd_transport *cbdt, u32 devid, bool force);
+int cbd_blkdev_clear(struct cbd_transport *cbdt, u32 devid);
 
 extern struct workqueue_struct	*cbd_wq;
 
@@ -790,9 +780,13 @@ static void OBJ##_hb_workfn(struct work_struct *work)					\
 {											\
 	struct cbd_##OBJ *obj = container_of(work, struct cbd_##OBJ, hb_work.work);	\
 	struct cbd_##OBJ##_info *info = obj->OBJ##_info;				\
+	struct cbd_obj_ops *ops = obj->ops;						\
 											\
-	info->alive_ts = ktime_get_real();						\
-	cbdt_flush_range(obj->cbdt, info, sizeof(*info));				\
+	if (ops && ops->heart_beat) {							\
+		ops->heart_beat(obj);							\
+	} else {									\
+		info->alive_ts = ktime_get_real();					\
+	}										\
 											\
 	queue_delayed_work(cbd_wq, &obj->hb_work, CBD_HB_INTERVAL);			\
 }											\
@@ -818,13 +812,12 @@ static ssize_t cbd_##OBJ##_alive_show(struct device *dev,				\
 											\
 	_dev = container_of(dev, struct cbd_##OBJ##_device, dev);			\
 											\
-	cbdt_flush_range(_dev->cbdt, _dev->OBJ##_info, sizeof(*_dev->OBJ##_info));	\
 	if (OBJ##_info_is_alive(_dev->OBJ##_info))					\
 		return sprintf(buf, "true\n");						\
 											\
 	return sprintf(buf, "false\n");							\
 }											\
 											\
-static DEVICE_ATTR(alive, 0400, cbd_##OBJ##_alive_show, NULL);				\
+static DEVICE_ATTR(alive, 0400, cbd_##OBJ##_alive_show, NULL)
 
 #endif /* _CBD_INTERNAL_H */
