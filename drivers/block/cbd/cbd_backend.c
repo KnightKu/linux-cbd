@@ -61,13 +61,13 @@ static void cbd_backend_release(struct device *dev)
 {
 }
 
-struct device_type cbd_backend_type = {
+const struct device_type cbd_backend_type = {
 	.name		= "cbd_backend",
 	.groups		= cbd_backend_attr_groups,
 	.release	= cbd_backend_release,
 };
 
-struct device_type cbd_backends_type = {
+const struct device_type cbd_backends_type = {
 	.name		= "cbd_backends",
 	.release	= cbd_backend_release,
 };
@@ -172,9 +172,8 @@ static int cbd_backend_init(struct cbd_backend *cbdb)
 
 	cbdb->task_wq = alloc_workqueue("cbdt%d-b%u",  WQ_UNBOUND | WQ_MEM_RECLAIM,
 					0, cbdt->id, cbdb->backend_id);
-	if (!cbdb->task_wq) {
+	if (!cbdb->task_wq)
 		return -ENOMEM;
-	}
 
 	cbdb->bdev_file = bdev_file_open_by_path(cbdb->path, BLK_OPEN_READ | BLK_OPEN_WRITE, cbdb, NULL);
 	if (IS_ERR(cbdb->bdev_file)) {

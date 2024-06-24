@@ -160,7 +160,7 @@ static const struct attribute_group cbd_bus_group = {
 };
 __ATTRIBUTE_GROUPS(cbd_bus);
 
-struct bus_type cbd_bus_type = {
+const struct bus_type cbd_bus_type = {
 	.name		= "cbd",
 	.bus_groups	= cbd_bus_groups,
 };

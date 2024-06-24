@@ -54,13 +54,13 @@ static void cbd_channel_release(struct device *dev)
 {
 }
 
-struct device_type cbd_channel_type = {
+const struct device_type cbd_channel_type = {
 	.name		= "cbd_channel",
 	.groups		= cbd_channel_attr_groups,
 	.release	= cbd_channel_release,
 };
 
-struct device_type cbd_channels_type = {
+const struct device_type cbd_channels_type = {
 	.name		= "cbd_channels",
 	.release	= cbd_channel_release,
 };

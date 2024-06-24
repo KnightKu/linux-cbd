@@ -77,13 +77,13 @@ static void cbd_blkdev_release(struct device *dev)
 {
 }
 
-struct device_type cbd_blkdev_type = {
+const struct device_type cbd_blkdev_type = {
 	.name		= "cbd_blkdev",
 	.groups		= cbd_blkdev_attr_groups,
 	.release	= cbd_blkdev_release,
 };
 
-struct device_type cbd_blkdevs_type = {
+const struct device_type cbd_blkdevs_type = {
 	.name		= "cbd_blkdevs",
 	.release	= cbd_blkdev_release,
 };
@@ -368,18 +368,17 @@ int cbd_blkdev_stop(struct cbd_transport *cbdt, u32 devid, bool force)
 	struct cbd_backend_info *backend_info;
 
 	cbd_blkdev = cbdt_get_blkdev(cbdt, devid);
-	if (!cbd_blkdev) {
+	if (!cbd_blkdev)
 		return -EINVAL;
-	}
 
 	mutex_lock(&cbd_blkdev->lock);
 	if (cbd_blkdev->open_count > 0 && !force) {
 		mutex_unlock(&cbd_blkdev->lock);
 		return -EBUSY;
-	} else {
-		cbdt_del_blkdev(cbdt, cbd_blkdev);
-		atomic_set(&cbd_blkdev->state, cbd_blkdev_state_removing);
 	}
+
+	cbdt_del_blkdev(cbdt, cbd_blkdev);
+	atomic_set(&cbd_blkdev->state, cbd_blkdev_state_removing);
 	mutex_unlock(&cbd_blkdev->lock);
 
 	cbd_blkdev_stop_queues(cbd_blkdev);

@@ -365,7 +365,6 @@ miss:
 	cbdwc_miss(&cbdq->complete_worker_cfg);
 
 	queue_delayed_work(cbdq->cbd_blkdev->task_wq, &cbdq->complete_work, 0);
-	return;
 }
 
 static blk_status_t cbd_queue_rq(struct blk_mq_hw_ctx *hctx,

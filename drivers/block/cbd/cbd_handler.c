@@ -67,6 +67,7 @@ static int cbd_map_pages(struct cbd_transport *cbdt, struct cbd_handler *handler
 		if (channel_off >= CBDC_DATA_SIZE)
 			channel_off &= CBDC_DATA_MASK;
 		u64 transport_off = (void *)handler->channel.data - (void *)cbdt->transport_info + channel_off;
+
 		page = cbdt_page(cbdt, transport_off, &page_off);
 
 		ret = bio_add_page(io->bio, page, len, 0);
@@ -204,7 +205,6 @@ miss:
 	cbdwc_miss(&handler->handle_worker_cfg);
 
 	queue_delayed_work(handler->cbdb->task_wq, &handler->handle_work, 0);
-	return;
 }
 
 int cbd_handler_create(struct cbd_backend *cbdb, u32 channel_id)

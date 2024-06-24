@@ -539,7 +539,7 @@ static void cbd_transport_release(struct device *dev)
 {
 }
 
-struct device_type cbd_transport_type = {
+const struct device_type cbd_transport_type = {
 	.name		= "cbd_transport",
 	.groups		= cbd_transport_attr_groups,
 	.release	= cbd_transport_release,
@@ -846,9 +846,8 @@ struct cbd_blkdev *cbdt_get_blkdev(struct cbd_transport *cbdt, u32 id)
 
 	mutex_lock(&cbdt->lock);
 	list_for_each_entry(dev, &cbdt->devices, node) {
-		if (dev->blkdev_id == id) {
+		if (dev->blkdev_id == id)
 			goto out;
-		}
 	}
 	dev = NULL;
 out:
