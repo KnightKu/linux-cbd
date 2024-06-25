@@ -577,7 +577,7 @@ struct cbd_backend {
 	struct block_device	*bdev;
 	struct file		*bdev_file;
 
-	struct workqueue_struct	*task_wq;  /* workqueue for request work */
+	struct workqueue_struct	*task_wq;
 	struct delayed_work	state_work;
 	struct delayed_work	hb_work; /* heartbeat work */
 	struct cbd_obj_ops	*ops;
@@ -601,11 +601,6 @@ enum cbd_op {
 	CBD_OP_DISCARD,
 	CBD_OP_WRITE_ZEROS,
 	CBD_OP_FLUSH,
-};
-
-struct cbd_se_hdr {
-	u32 op;
-	u32 flags;
 };
 
 struct cbd_se {
@@ -633,6 +628,7 @@ struct cbd_ce {
 	u32		flags;
 };
 
+#ifdef CONFIG_CBD_CRC
 static inline u32 cbd_se_crc(struct cbd_se *se)
 {
 	return crc32(0, (void *)se + 4, sizeof(*se) - 4);
@@ -642,6 +638,7 @@ static inline u32 cbd_ce_crc(struct cbd_ce *ce)
 {
 	return crc32(0, (void *)ce + 4, sizeof(*ce) - 4);
 }
+#endif
 
 struct cbd_request {
 	struct cbd_queue	*cbdq;
