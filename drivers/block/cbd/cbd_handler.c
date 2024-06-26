@@ -59,7 +59,9 @@ static int cbd_map_pages(struct cbd_transport *cbdt, struct cbd_handler *handler
 	struct page *page;
 	u32 page_off;
 	int ret = 0;
+	int id;
 
+	id = dax_read_lock();
 	while (size) {
 		unsigned int len = min_t(size_t, PAGE_SIZE, size);
 		u64 channel_off = off + done;
@@ -73,14 +75,17 @@ static int cbd_map_pages(struct cbd_transport *cbdt, struct cbd_handler *handler
 		ret = bio_add_page(io->bio, page, len, 0);
 		if (unlikely(ret != len)) {
 			cbdt_err(cbdt, "failed to add page");
-			return ret;
+			goto out;
 		}
 
 		done += len;
 		size -= len;
 	}
 
-	return 0;
+	ret = 0;
+out:
+	dax_read_unlock(id);
+	return ret;
 }
 
 static struct cbd_backend_io *backend_prepare_io(struct cbd_handler *handler, struct cbd_se *se, blk_opf_t opf)
