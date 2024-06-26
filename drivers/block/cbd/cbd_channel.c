@@ -176,7 +176,6 @@ void cbd_channel_init(struct cbd_channel *channel, struct cbd_transport *cbdt, u
 	channel->compr = (void *)channel_info + CBDC_COMPR_OFF;
 	channel->data = (void *)channel_info + CBDC_DATA_OFF;
 	channel->data_size = CBDC_DATA_SIZE;
-	channel->ctrl_page = cbdt_page(cbdt, (void *)channel_info - (void *)cbdt->transport_info, NULL);
 
 	spin_lock_init(&channel->cmdr_lock);
 	spin_lock_init(&channel->compr_lock);

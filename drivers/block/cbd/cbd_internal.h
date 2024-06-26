@@ -505,8 +505,6 @@ struct cbd_channel {
 
 	struct cbd_transport		*cbdt;
 
-	struct page			*ctrl_page;
-
 	void				*cmdr;
 	void				*compr;
 	void				*data;
