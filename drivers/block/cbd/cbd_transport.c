@@ -602,6 +602,7 @@ static int cbdt_dax_init(struct cbd_transport *cbdt, char *path)
 	u64 nr_pages = CBD_TRASNPORT_SIZE >> PAGE_SHIFT;
 	u64 start_off = 0;
 	int ret;
+	int id;
 
 	bdev_file = bdev_file_open_by_path(path, BLK_OPEN_READ | BLK_OPEN_WRITE, cbdt, NULL);
 	if (IS_ERR(bdev_file)) {
@@ -619,8 +620,10 @@ static int cbdt_dax_init(struct cbd_transport *cbdt, char *path)
 		goto fput;
 	}
 
+	id = dax_read_lock();
 	access_size = dax_direct_access(dax_dev, 0, nr_pages, DAX_ACCESS, &kaddr, NULL);
 	if (access_size != nr_pages) {
+		dax_read_unlock(id);
 		ret = -EINVAL;
 		goto dax_put;
 	}
@@ -628,6 +631,7 @@ static int cbdt_dax_init(struct cbd_transport *cbdt, char *path)
 	cbdt->bdev_file = bdev_file;
 	cbdt->dax_dev = dax_dev;
 	cbdt->transport_info = (struct cbd_transport_info *)kaddr;
+	dax_read_unlock(id);
 
 	return 0;
 
