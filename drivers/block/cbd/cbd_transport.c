@@ -337,6 +337,7 @@ static void channels_format(struct cbd_transport *cbdt)
 static int cbd_transport_format(struct cbd_transport *cbdt, bool force)
 {
 	struct cbd_transport_info *info = cbdt->transport_info;
+	u64 transport_dev_size;
 	u64 seg_size;
 	u32 nr_segs;
 	u64 magic;
@@ -344,6 +345,12 @@ static int cbd_transport_format(struct cbd_transport *cbdt, bool force)
 	magic = le64_to_cpu(info->magic);
 	if (magic && !force)
 		return -EEXIST;
+
+	transport_dev_size = bdev_nr_bytes(file_bdev(cbdt->bdev_file));
+	if (transport_dev_size < CBD_TRASNPORT_SIZE) {
+		cbdt_err(cbdt, "dax device is too small, required at least %lu", CBD_TRASNPORT_SIZE);
+		return -ENOSPC;
+	}
 
 	info->magic = cpu_to_le64(CBD_TRANSPORT_MAGIC);
 	info->version = cpu_to_le16(CBD_TRANSPORT_VERSION);
@@ -356,7 +363,7 @@ static int cbd_transport_format(struct cbd_transport *cbdt, bool force)
 	 */
 	seg_size = (CBDT_HOST_INFO_SIZE + CBDT_BACKEND_INFO_SIZE +
 			CBDT_BLKDEV_INFO_SIZE + CBDT_CHANNEL_SIZE);
-	nr_segs = (cbdt->transport_dev_size - CBDT_INFO_SIZE) / seg_size;
+	nr_segs = (transport_dev_size - CBDT_INFO_SIZE) / seg_size;
 
 	info->host_area_off = CBDT_HOST_AREA_OFF;
 	info->host_info_size = CBDT_HOST_INFO_SIZE;
@@ -608,7 +615,6 @@ static int cbdt_dax_init(struct cbd_transport *cbdt, char *path)
 	struct file *bdev_file = NULL;
 	long access_size;
 	void *kaddr;
-	u64 nr_pages = CBD_TRASNPORT_SIZE >> PAGE_SHIFT;
 	u64 start_off = 0;
 	int ret;
 	int id;
@@ -618,13 +624,6 @@ static int cbdt_dax_init(struct cbd_transport *cbdt, char *path)
 		cbdt_err(cbdt, "%s: failed blkdev_get_by_path(%s)\n", __func__, path);
 		ret = PTR_ERR(bdev_file);
 		goto err;
-	}
-
-	cbdt->transport_dev_size = bdev_nr_bytes(file_bdev(bdev_file));
-	if (cbdt->transport_dev_size < CBD_TRASNPORT_SIZE) {
-		cbdt_err(cbdt, "%s is too small, required at least %lu", path, CBD_TRASNPORT_SIZE);
-		ret = -ENOSPC;
-		goto fput;
 	}
 
 	dax_dev = fs_dax_get_by_bdev(file_bdev(bdev_file), &start_off,
@@ -637,8 +636,8 @@ static int cbdt_dax_init(struct cbd_transport *cbdt, char *path)
 	}
 
 	id = dax_read_lock();
-	access_size = dax_direct_access(dax_dev, 0, nr_pages, DAX_ACCESS, &kaddr, NULL);
-	if (access_size != nr_pages) {
+	access_size = dax_direct_access(dax_dev, 0, 1, DAX_ACCESS, &kaddr, NULL);
+	if (access_size != 1) {
 		dax_read_unlock(id);
 		ret = -EINVAL;
 		goto dax_put;
