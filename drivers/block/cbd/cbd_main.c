@@ -1,5 +1,5 @@
 /*
- * Copyright(C) 2024, Dongsheng Yang <dongsheng.yang.linux@gmail.com>
+ * Copyright(C) 2024, Dongsheng Yang <dongsheng.yang@linux.dev>
  */
 
 #include <linux/module.h>
@@ -217,7 +217,7 @@ static void cbd_exit(void)
 	destroy_workqueue(cbd_wq);
 }
 
-MODULE_AUTHOR("Dongsheng Yang <dongsheng.yang.linux@gmail.com>");
+MODULE_AUTHOR("Dongsheng Yang <dongsheng.yang@linux.dev>");
 MODULE_DESCRIPTION("CXL(Compute Express Link) Block Device");
 MODULE_LICENSE("GPL v2");
 module_init(cbd_init);
