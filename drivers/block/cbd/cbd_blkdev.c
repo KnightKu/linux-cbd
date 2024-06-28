@@ -283,6 +283,11 @@ int cbd_blkdev_start(struct cbd_transport *cbdt, u32 backend_id, u32 queues)
 	if (backend_info->blkdev_count == CBDB_BLKDEV_COUNT_MAX)
 		return -EBUSY;
 
+	if (!cbd_backend_info_is_alive(backend_info)) {
+		cbdt_err(cbdt, "backend %u is not alive\n", backend_id);
+		return -EINVAL;
+	}
+
 	dev_size = backend_info->dev_size;
 
 	cbd_blkdev = kzalloc(sizeof(struct cbd_blkdev), GFP_KERNEL);
@@ -405,7 +410,7 @@ int cbd_blkdev_clear(struct cbd_transport *cbdt, u32 devid)
 	struct cbd_blkdev_info *blkdev_info;
 
 	blkdev_info = cbdt_get_blkdev_info(cbdt, devid);
-	if (blkdev_info_is_alive(blkdev_info)) {
+	if (cbd_blkdev_info_is_alive(blkdev_info)) {
 		cbdt_err(cbdt, "blkdev %u is still alive\n", devid);
 		return -EBUSY;
 	}

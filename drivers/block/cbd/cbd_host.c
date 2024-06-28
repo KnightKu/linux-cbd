@@ -117,7 +117,7 @@ int cbd_host_clear(struct cbd_transport *cbdt, u32 host_id)
 	struct cbd_host_info *host_info;
 
 	host_info = cbdt_get_host_info(cbdt, host_id);
-	if (host_info_is_alive(host_info)) {
+	if (cbd_host_info_is_alive(host_info)) {
 		cbdt_err(cbdt, "host %u is still alive\n", host_id);
 		return -EBUSY;
 	}

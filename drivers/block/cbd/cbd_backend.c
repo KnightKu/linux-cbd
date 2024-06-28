@@ -282,7 +282,7 @@ int cbd_backend_clear(struct cbd_transport *cbdt, u32 backend_id)
 	struct cbd_backend_info *backend_info;
 
 	backend_info = cbdt_get_backend_info(cbdt, backend_id);
-	if (backend_info_is_alive(backend_info)) {
+	if (cbd_backend_info_is_alive(backend_info)) {
 		cbdt_err(cbdt, "backend %u is still alive\n", backend_id);
 		return -EBUSY;
 	}

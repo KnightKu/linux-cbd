@@ -455,6 +455,7 @@ struct cbd_host {
 int cbd_host_register(struct cbd_transport *cbdt, char *hostname);
 int cbd_host_unregister(struct cbd_transport *cbdt);
 int cbd_host_clear(struct cbd_transport *cbdt, u32 host_id);
+bool cbd_host_info_is_alive(struct cbd_host_info *info);
 
 /* cbd_channel */
 CBD_DEVICE(channel);
@@ -591,6 +592,7 @@ int cbd_backend_stop(struct cbd_transport *cbdt, u32 backend_id, bool force);
 int cbd_backend_clear(struct cbd_transport *cbdt, u32 backend_id);
 void cbdb_add_handler(struct cbd_backend *cbdb, struct cbd_handler *handler);
 void cbdb_del_handler(struct cbd_backend *cbdb, struct cbd_handler *handler);
+bool cbd_backend_info_is_alive(struct cbd_backend_info *info);
 
 /* cbd_queue */
 enum cbd_op {
@@ -755,6 +757,7 @@ void cbd_blkdev_exit(void);
 int cbd_blkdev_start(struct cbd_transport *cbdt, u32 backend_id, u32 queues);
 int cbd_blkdev_stop(struct cbd_transport *cbdt, u32 devid, bool force);
 int cbd_blkdev_clear(struct cbd_transport *cbdt, u32 devid);
+bool cbd_blkdev_info_is_alive(struct cbd_blkdev_info *info);
 
 extern struct workqueue_struct	*cbd_wq;
 
@@ -785,7 +788,7 @@ static void OBJ##_hb_workfn(struct work_struct *work)					\
 	queue_delayed_work(cbd_wq, &obj->hb_work, CBD_HB_INTERVAL);			\
 }											\
 											\
-static bool OBJ##_info_is_alive(struct cbd_##OBJ##_info *info)				\
+bool cbd_##OBJ##_info_is_alive(struct cbd_##OBJ##_info *info)				\
 {											\
 	ktime_t oldest, ts;								\
 											\
@@ -806,7 +809,7 @@ static ssize_t cbd_##OBJ##_alive_show(struct device *dev,				\
 											\
 	_dev = container_of(dev, struct cbd_##OBJ##_device, dev);			\
 											\
-	if (OBJ##_info_is_alive(_dev->OBJ##_info))					\
+	if (cbd_##OBJ##_info_is_alive(_dev->OBJ##_info))					\
 		return sprintf(buf, "true\n");						\
 											\
 	return sprintf(buf, "false\n");							\
