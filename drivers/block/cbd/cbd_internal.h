@@ -393,6 +393,7 @@ struct cbd_transport {
 
 	struct dax_device *dax_dev;
 	struct file *bdev_file;
+	u64 transport_dev_size;
 };
 
 struct cbdt_register_options {

@@ -337,33 +337,42 @@ static void channels_format(struct cbd_transport *cbdt)
 static int cbd_transport_format(struct cbd_transport *cbdt, bool force)
 {
 	struct cbd_transport_info *info = cbdt->transport_info;
+	u64 seg_size;
+	u32 nr_segs;
 	u64 magic;
 
 	magic = le64_to_cpu(info->magic);
 	if (magic && !force)
 		return -EEXIST;
 
-	/* TODO make these configureable */
 	info->magic = cpu_to_le64(CBD_TRANSPORT_MAGIC);
 	info->version = cpu_to_le16(CBD_TRANSPORT_VERSION);
 #if defined(__BYTE_ORDER) ? __BYTE_ORDER == __BIG_ENDIAN : defined(__BIG_ENDIAN)
 	info->flags = cpu_to_le16(CBDT_INFO_F_BIGENDIAN);
 #endif
+	/*
+	 * Try to fully utilize all available space,
+	 * assuming host:blkdev:backend:channel = 1:1:1:1
+	 */
+	seg_size = (CBDT_HOST_INFO_SIZE + CBDT_BACKEND_INFO_SIZE +
+			CBDT_BLKDEV_INFO_SIZE + CBDT_CHANNEL_SIZE);
+	nr_segs = (cbdt->transport_dev_size - CBDT_INFO_SIZE) / seg_size;
+
 	info->host_area_off = CBDT_HOST_AREA_OFF;
 	info->host_info_size = CBDT_HOST_INFO_SIZE;
-	info->host_num = CBDT_HOST_NUM;
+	info->host_num = nr_segs;
 
-	info->backend_area_off = CBDT_BACKEND_AREA_OFF;
+	info->backend_area_off = info->host_area_off + (info->host_info_size * info->host_num);
 	info->backend_info_size = CBDT_BACKEND_INFO_SIZE;
-	info->backend_num = CBDT_BACKEND_NUM;
+	info->backend_num = nr_segs;
 
-	info->blkdev_area_off = CBDT_BLKDEV_AREA_OFF;
+	info->blkdev_area_off = info->backend_area_off + (info->backend_info_size * info->backend_num);
 	info->blkdev_info_size = CBDT_BLKDEV_INFO_SIZE;
-	info->blkdev_num = CBDT_BLKDEV_NUM;
+	info->blkdev_num = nr_segs;
 
-	info->channel_area_off = CBDT_CHANNEL_AREA_OFF;
+	info->channel_area_off = info->blkdev_area_off + (info->blkdev_info_size * info->blkdev_num);
 	info->channel_size = CBDT_CHANNEL_SIZE;
-	info->channel_num = CBDT_CHANNEL_NUM;
+	info->channel_num = nr_segs;
 
 	transport_zero_range(cbdt, (void *)info + info->host_area_off,
 			     info->channel_area_off - info->host_area_off);
@@ -609,6 +618,13 @@ static int cbdt_dax_init(struct cbd_transport *cbdt, char *path)
 		cbdt_err(cbdt, "%s: failed blkdev_get_by_path(%s)\n", __func__, path);
 		ret = PTR_ERR(bdev_file);
 		goto err;
+	}
+
+	cbdt->transport_dev_size = bdev_nr_bytes(file_bdev(bdev_file));
+	if (cbdt->transport_dev_size < CBD_TRASNPORT_SIZE) {
+		cbdt_err(cbdt, "%s is too small, required at least %lu", path, CBD_TRASNPORT_SIZE);
+		ret = -ENOSPC;
+		goto fput;
 	}
 
 	dax_dev = fs_dax_get_by_bdev(file_bdev(bdev_file), &start_off,
