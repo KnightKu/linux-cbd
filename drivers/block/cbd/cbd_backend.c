@@ -92,7 +92,8 @@ static struct cbd_handler *cbdb_get_handler(struct cbd_backend *cbdb, u32 channe
 	bool found = false;
 
 	mutex_lock(&cbdb->lock);
-	list_for_each_entry_safe(handler, handler_next, &cbdb->handlers, handlers_node) {
+	list_for_each_entry_safe(handler, handler_next,
+				 &cbdb->handlers, handlers_node) {
 		if (handler->channel.channel_id == channel_id) {
 			found = true;
 			break;
@@ -100,10 +101,10 @@ static struct cbd_handler *cbdb_get_handler(struct cbd_backend *cbdb, u32 channe
 	}
 	mutex_unlock(&cbdb->lock);
 
-	if (!found)
-		return ERR_PTR(-ENOENT);
+	if (found)
+		return handler;
 
-	return handler;
+	return NULL;
 }
 
 static void state_work_fn(struct work_struct *work)
@@ -112,6 +113,7 @@ static void state_work_fn(struct work_struct *work)
 	struct cbd_transport *cbdt = cbdb->cbdt;
 	struct cbd_channel_info *channel_info;
 	u32 blkdev_state, backend_state, backend_id;
+	int ret;
 	int i;
 
 	for (i = 0; i < cbdt->transport_info->channel_num; i++) {
@@ -125,7 +127,11 @@ static void state_work_fn(struct work_struct *work)
 				backend_state == cbdc_backend_state_none &&
 				backend_id == cbdb->backend_id) {
 
-			cbd_handler_create(cbdb, i);
+			ret = cbd_handler_create(cbdb, i);
+			if (ret) {
+				cbdb_err(cbdb, "create handler for %u error", i);
+				continue;
+			}
 		}
 
 		if (blkdev_state == cbdc_blkdev_state_none &&
@@ -134,6 +140,8 @@ static void state_work_fn(struct work_struct *work)
 			struct cbd_handler *handler;
 
 			handler = cbdb_get_handler(cbdb, i);
+			if (!handler)
+				continue;
 			cbd_handler_destroy(handler);
 		}
 	}
@@ -175,7 +183,8 @@ static int cbd_backend_init(struct cbd_backend *cbdb)
 	if (!cbdb->task_wq)
 		return -ENOMEM;
 
-	cbdb->bdev_file = bdev_file_open_by_path(cbdb->path, BLK_OPEN_READ | BLK_OPEN_WRITE, cbdb, NULL);
+	cbdb->bdev_file = bdev_file_open_by_path(cbdb->path,
+			BLK_OPEN_READ | BLK_OPEN_WRITE, cbdb, NULL);
 	if (IS_ERR(cbdb->bdev_file)) {
 		cbdt_err(cbdt, "failed to open bdev: %d", (int)PTR_ERR(cbdb->bdev_file));
 		destroy_workqueue(cbdb->task_wq);

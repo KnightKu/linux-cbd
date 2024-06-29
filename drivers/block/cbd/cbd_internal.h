@@ -69,24 +69,24 @@
 	cbd_debug("cbd_transport%u: " fmt,					\
 		 transport->id, ##__VA_ARGS__)
 
-#define cbd_backend_err(backend, fmt, ...)					\
+#define cbdb_err(backend, fmt, ...)						\
 	cbdt_err(backend->cbdt, "backend%d: " fmt,				\
 		 backend->backend_id, ##__VA_ARGS__)
-#define cbd_backend_info(backend, fmt, ...)					\
+#define cbdb_info(backend, fmt, ...)						\
 	cbdt_info(backend->cbdt, "backend%d: " fmt,				\
 		 backend->backend_id, ##__VA_ARGS__)
-#define cbd_backend_debug(backend, fmt, ...)					\
+#define cbdbdebug(backend, fmt, ...)						\
 	cbdt_debug(backend->cbdt, "backend%d: " fmt,				\
 		 backend->backend_id, ##__VA_ARGS__)
 
 #define cbd_handler_err(handler, fmt, ...)					\
-	cbd_backend_err(handler->cbdb, "handler%d: " fmt,			\
+	cbdb_err(handler->cbdb, "handler%d: " fmt,				\
 		 handler->channel.channel_id, ##__VA_ARGS__)
 #define cbd_handler_info(handler, fmt, ...)					\
-	cbd_backend_info(handler->cbdb, "handler%d: " fmt,			\
+	cbdb_info(handler->cbdb, "handler%d: " fmt,				\
 		 handler->channel.channel_id, ##__VA_ARGS__)
 #define cbd_handler_debug(handler, fmt, ...)					\
-	cbd_backend_debug(handler->cbdb, "handler%d: " fmt,			\
+	cbdb_debug(handler->cbdb, "handler%d: " fmt,				\
 		 handler->channel.channel_id, ##__VA_ARGS__)
 
 #define cbd_blk_err(dev, fmt, ...)						\

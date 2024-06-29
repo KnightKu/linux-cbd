@@ -52,7 +52,8 @@ static void backend_bio_end(struct bio *bio)
 	kfree(backend_io);
 }
 
-static int cbd_map_pages(struct cbd_transport *cbdt, struct cbd_handler *handler, struct cbd_backend_io *io)
+static int cbd_map_pages(struct cbd_transport *cbdt, struct cbd_handler *handler,
+			 struct cbd_backend_io *io)
 {
 	struct cbd_se *se = io->se;
 	u64 off = se->data_off;
@@ -70,7 +71,8 @@ static int cbd_map_pages(struct cbd_transport *cbdt, struct cbd_handler *handler
 
 		if (channel_off >= CBDC_DATA_SIZE)
 			channel_off &= CBDC_DATA_MASK;
-		u64 transport_off = (void *)handler->channel.data - (void *)cbdt->transport_info + channel_off;
+		u64 transport_off = (void *)handler->channel.data -
+					(void *)cbdt->transport_info + channel_off;
 
 		page = cbdt_page(cbdt, transport_off, &page_off);
 
@@ -90,7 +92,8 @@ out:
 	return ret;
 }
 
-static struct cbd_backend_io *backend_prepare_io(struct cbd_handler *handler, struct cbd_se *se, blk_opf_t opf)
+static struct cbd_backend_io *backend_prepare_io(struct cbd_handler *handler,
+						 struct cbd_se *se, blk_opf_t opf)
 {
 	struct cbd_backend_io *backend_io;
 	struct cbd_backend *cbdb = handler->cbdb;
@@ -99,7 +102,9 @@ static struct cbd_backend_io *backend_prepare_io(struct cbd_handler *handler, st
 	backend_io->se = se;
 
 	backend_io->handler = handler;
-	backend_io->bio = bio_alloc_bioset(cbdb->bdev, roundup(se->len, 4096) / 4096 + 1, opf, GFP_KERNEL, &handler->bioset);
+	backend_io->bio = bio_alloc_bioset(cbdb->bdev,
+				DIV_ROUND_UP(se->len, PAGE_SIZE),
+				opf, GFP_KERNEL, &handler->bioset);
 
 	backend_io->bio->bi_iter.bi_sector = se->offset >> SECTOR_SHIFT;
 	backend_io->bio->bi_iter.bi_size = 0;
@@ -162,7 +167,8 @@ complete_cmd:
 
 static void handle_work_fn(struct work_struct *work)
 {
-	struct cbd_handler *handler = container_of(work, struct cbd_handler, handle_work.work);
+	struct cbd_handler *handler = container_of(work, struct cbd_handler,
+						   handle_work.work);
 	struct cbd_se *se;
 	u64 req_tid;
 	int ret;
@@ -203,7 +209,8 @@ again:
 	if (!ret) {
 		/* this se is handled */
 		handler->req_tid_expected = req_tid + 1;
-		handler->se_to_handle = (handler->se_to_handle + sizeof(struct cbd_se)) % handler->channel_info->cmdr_size;
+		handler->se_to_handle = (handler->se_to_handle + sizeof(struct cbd_se)) %
+							handler->channel_info->cmdr_size;
 	}
 
 	goto again;
@@ -236,7 +243,7 @@ int cbd_handler_create(struct cbd_backend *cbdb, u32 channel_id)
 	INIT_DELAYED_WORK(&handler->handle_work, handle_work_fn);
 	INIT_LIST_HEAD(&handler->handlers_node);
 
-	bioset_init(&handler->bioset, 128, 0, BIOSET_NEED_BVECS);
+	bioset_init(&handler->bioset, 256, 0, BIOSET_NEED_BVECS);
 	cbdwc_init(&handler->handle_worker_cfg);
 
 	cbdb_add_handler(cbdb, handler);
