@@ -131,7 +131,7 @@ static void cbd_req_crc_init(struct cbd_request *cbd_req)
 	struct cbd_queue *cbdq = cbd_req->cbdq;
 	struct cbd_se *se = cbd_req->se;
 
-	if (!cbd_req_nodata(cbd_req))
+	if (cbd_req->op == CBD_OP_WRITE)
 		se->data_crc = cbd_channel_crc(&cbdq->channel,
 					       cbd_req->data_off,
 					       cbd_req->data_len);
@@ -275,14 +275,13 @@ static inline void complete_inflight_req(struct cbd_queue *cbdq, struct cbd_requ
 	spin_unlock(&cbdq->channel.cmdr_lock);
 }
 
-static struct cbd_request *fetch_inflight_req(struct cbd_queue *cbdq, u64 req_tid)
+static struct cbd_request *find_inflight_req(struct cbd_queue *cbdq, u64 req_tid)
 {
 	struct cbd_request *req;
 	bool found = false;
 
 	list_for_each_entry(req, &cbdq->inflight_reqs, inflight_reqs_node) {
 		if (req->req_tid == req_tid) {
-			list_del_init(&req->inflight_reqs_node);
 			found = true;
 			break;
 		}
@@ -320,7 +319,7 @@ again:
 		goto miss;
 
 	spin_lock(&cbdq->inflight_reqs_lock);
-	cbd_req = fetch_inflight_req(cbdq, ce->req_tid);
+	cbd_req = find_inflight_req(cbdq, ce->req_tid);
 	spin_unlock(&cbdq->inflight_reqs_lock);
 	if (!cbd_req) {
 		cbd_queue_err(cbdq, "inflight request not found: %llu.", ce->req_tid);
@@ -331,6 +330,18 @@ again:
 	if (ce->ce_crc != cbd_ce_crc(ce)) {
 		cbd_queue_err(cbdq, "ce crc bad 0x%x != 0x%x(expected)",
 				cbd_ce_crc(ce), ce->ce_crc);
+		goto miss;
+	}
+
+	if (cbd_req->op == CBD_OP_READ &&
+		ce->data_crc != cbd_channel_crc(&cbdq->channel,
+					       cbd_req->data_off,
+					       cbd_req->data_len)) {
+		cbd_queue_err(cbdq, "ce data_crc bad 0x%x != 0x%x(expected)",
+				cbd_channel_crc(&cbdq->channel,
+						cbd_req->data_off,
+						cbd_req->data_len),
+				ce->data_crc);
 		goto miss;
 	}
 #endif

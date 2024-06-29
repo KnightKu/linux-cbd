@@ -622,6 +622,7 @@ struct cbd_se {
 struct cbd_ce {
 #ifdef CONFIG_CBD_CRC
 	u32		ce_crc;		/* should be the first member */
+	u32		data_crc;
 #endif
 	u64		req_tid;
 	u32		result;
