@@ -334,6 +334,31 @@ static void channels_format(struct cbd_transport *cbdt)
 	}
 }
 
+static void cbdt_seg_set_busy(struct cbd_transport *cbdt, u64 seg_id)
+{
+	struct cbd_seg_info *seg_info = &cbdt->segments[seg_id];
+
+	seg_info->state = cbds_state_busy;
+}
+
+static bool cbdt_seg_busy(struct cbd_transport *cbdt, u64 seg_id)
+{
+	struct cbd_seg_info *seg_info = &cbdt->segments[seg_id];
+
+	return seg_info->state == cbds_state_busy;
+}
+
+static void cbdt_seg_dump(struct cbd_transport *cbdt, enum cbds_state state)
+{
+	u64 i;
+
+	for (i = 0; i < cbdt->transport_info->segment_num; i++) {
+		if (cbdt_seg_busy(cbdt, i)) {
+			cbdt_err(cbdt, "segment %llu is %s\n", i, cbds_state_str(state));
+		}
+	}
+}
+
 static int cbd_transport_format(struct cbd_transport *cbdt, bool force)
 {
 	struct cbd_transport_info *info = cbdt->transport_info;
@@ -341,6 +366,7 @@ static int cbd_transport_format(struct cbd_transport *cbdt, bool force)
 	u64 seg_size;
 	u32 nr_segs;
 	u64 magic;
+	int i;
 
 	magic = le64_to_cpu(info->magic);
 	if (magic && !force)
@@ -357,6 +383,21 @@ static int cbd_transport_format(struct cbd_transport *cbdt, bool force)
 #if defined(__BYTE_ORDER) ? __BYTE_ORDER == __BIG_ENDIAN : defined(__BIG_ENDIAN)
 	info->flags = cpu_to_le16(CBDT_INFO_F_BIGENDIAN);
 #endif
+
+	/* Seg 0 for cbd transport info and reserved */
+	cbdt_seg_set_busy(cbdt, 0);
+
+	/* Seg 1 is the first seg for cbd_seg_infos */
+	info->segment_num = transport_dev_size / CBD_SEG_SIZE_DEFAULT;
+	u64 seg_info_per_segment = CBD_SEG_SIZE_DEFAULT / sizeof(struct cbd_seg_info);
+
+	pr_err("segments_num: %llu, seg_info_per_segment: %llu", info->segment_num, seg_info_per_segment);
+	for (i = CBD_FIRST_META_SEG; i <= DIV_ROUND_UP(info->segment_num, seg_info_per_segment); i++)
+		cbdt_seg_set_busy(cbdt, i);
+
+	cbdt_seg_dump(cbdt, cbds_state_busy);
+	return 0;
+
 	/*
 	 * Try to fully utilize all available space,
 	 * assuming host:blkdev:backend:channel = 1:1:1:1
@@ -646,6 +687,8 @@ static int cbdt_dax_init(struct cbd_transport *cbdt, char *path)
 	cbdt->bdev_file = bdev_file;
 	cbdt->dax_dev = dax_dev;
 	cbdt->transport_info = (struct cbd_transport_info *)kaddr;
+	cbdt->segments = (struct cbd_seg_info *)(kaddr + CBD_SEG_SIZE_DEFAULT * CBD_FIRST_META_SEG);
+
 	dax_read_unlock(id);
 
 	return 0;
@@ -770,6 +813,8 @@ int cbdt_register(struct cbdt_register_options *opts)
 		if (ret < 0)
 			goto dax_release;
 	}
+
+	goto dax_release;
 
 	ret = cbdt_validate(cbdt);
 	if (ret)

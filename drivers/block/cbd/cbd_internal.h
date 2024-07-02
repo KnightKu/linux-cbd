@@ -218,6 +218,9 @@
 
 #define CBD_TRASNPORT_SIZE		(CBDT_CHANNEL_AREA_OFF + CBDT_CHANNEL_SIZE * CBDT_CHANNEL_NUM)
 
+#define CBD_SEG_SIZE_DEFAULT		(256 * 1024) /* 256K */
+#define CBD_FIRST_META_SEG		1
+
 /*
  * CBD structure diagram:
  *
@@ -350,6 +353,28 @@ static inline bool cbdwc_need_retry(struct cbd_worker_cfg *cfg)
 	return false;
 }
 
+/* cbd_seg */
+struct cbd_seg_info {
+	u64	state:4;
+	u64	type:4;
+	u64	next;
+};
+
+enum cbds_state	{
+	cbds_state_none,
+	cbds_state_busy
+};
+
+static inline char *cbds_state_str(enum cbds_state state)
+{
+	if (state == cbds_state_none)
+		return "None";
+	else if (state == cbds_state_busy)
+		return "Busy";
+
+	return "Unknown";
+}
+
 /* cbd_transport */
 #define CBDT_INFO_F_BIGENDIAN		(1 << 0)
 
@@ -373,6 +398,8 @@ struct cbd_transport_info {
 	u64 channel_area_off;
 	u64 channel_size;
 	u32 channel_num;
+
+	u64 segment_num;
 };
 
 struct cbd_transport {
@@ -393,6 +420,8 @@ struct cbd_transport {
 
 	struct dax_device *dax_dev;
 	struct file *bdev_file;
+
+	struct cbd_seg_info *segments;
 };
 
 struct cbdt_register_options {
@@ -810,7 +839,7 @@ static ssize_t cbd_##OBJ##_alive_show(struct device *dev,				\
 											\
 	_dev = container_of(dev, struct cbd_##OBJ##_device, dev);			\
 											\
-	if (cbd_##OBJ##_info_is_alive(_dev->OBJ##_info))					\
+	if (cbd_##OBJ##_info_is_alive(_dev->OBJ##_info))				\
 		return sprintf(buf, "true\n");						\
 											\
 	return sprintf(buf, "false\n");							\
