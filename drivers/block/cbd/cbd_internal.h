@@ -135,8 +135,7 @@
 #define CBD_PATH_LEN	512
 #define CBD_NAME_LEN	32
 
-/* TODO support multi queue */
-#define CBD_QUEUES_MAX		1
+#define CBD_QUEUES_MAX		128
 
 #define CBD_PART_SHIFT 4
 #define CBD_DRV_NAME "cbd"
@@ -655,7 +654,9 @@ struct cbd_cache {
 	struct cbd_cache_info		*cache_info;
 	u32				cache_id;	/* same with related backend->backend_id */
 
+	struct mutex			data_head_lock;
 	struct cbd_cache_pos		data_head;
+	struct mutex			key_head_lock;
 	struct cbd_cache_pos		key_head;
 
 	struct cbd_cache_pos		key_tail;
@@ -663,7 +664,6 @@ struct cbd_cache {
 
 	struct kmem_cache		*key_cache;
 	struct rb_root			cache_tree;
-	struct mutex			io_lock;
 	struct mutex			tree_lock;
 
 	struct workqueue_struct		*cache_wq;
@@ -788,8 +788,6 @@ bool cbd_backend_cache_on(struct cbd_backend_info *backend_info);
 enum cbd_op {
 	CBD_OP_WRITE = 0,
 	CBD_OP_READ,
-	CBD_OP_DISCARD,
-	CBD_OP_WRITE_ZEROES,
 	CBD_OP_FLUSH,
 };
 
