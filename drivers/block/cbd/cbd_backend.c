@@ -69,34 +69,42 @@ const struct device_type cbd_backends_type = {
 	.release	= cbd_backend_release,
 };
 
-void cbdb_add_handler(struct cbd_backend *cbdb, struct cbd_handler *handler)
+int cbdb_add_handler(struct cbd_backend *cbdb, struct cbd_handler *handler)
 {
-	mutex_lock(&cbdb->lock);
-	list_add(&handler->handlers_node, &cbdb->handlers);
-	mutex_unlock(&cbdb->lock);
+	int ret = 0;
+
+	spin_lock(&cbdb->lock);
+	if (cbdb->backend_info->state == cbd_backend_state_removing) {
+		ret = -EFAULT;
+		goto out;
+	}
+	hash_add(cbdb->handlers_hash, &handler->hash_node, handler->channel.seg_id);
+out:
+	spin_unlock(&cbdb->lock);
+	return ret;
 }
 
 void cbdb_del_handler(struct cbd_backend *cbdb, struct cbd_handler *handler)
 {
-	mutex_lock(&cbdb->lock);
-	list_del_init(&handler->handlers_node);
-	mutex_unlock(&cbdb->lock);
+	spin_lock(&cbdb->lock);
+	hash_del(&handler->hash_node);
+	spin_unlock(&cbdb->lock);
 }
 
 static struct cbd_handler *cbdb_get_handler(struct cbd_backend *cbdb, u32 seg_id)
 {
-	struct cbd_handler *handler, *handler_next;
+	struct cbd_handler *handler;
 	bool found = false;
 
-	mutex_lock(&cbdb->lock);
-	list_for_each_entry_safe(handler, handler_next,
-				 &cbdb->handlers, handlers_node) {
+	spin_lock(&cbdb->lock);
+	hash_for_each_possible(cbdb->handlers_hash, handler,
+			       hash_node, seg_id) {
 		if (handler->channel.seg_id == seg_id) {
 			found = true;
 			break;
 		}
 	}
-	mutex_unlock(&cbdb->lock);
+	spin_unlock(&cbdb->lock);
 
 	if (found)
 		return handler;
@@ -197,10 +205,10 @@ static int cbd_backend_init(struct cbd_backend *cbdb, bool new_backend)
 
 	INIT_DELAYED_WORK(&cbdb->state_work, state_work_fn);
 	INIT_DELAYED_WORK(&cbdb->hb_work, backend_hb_workfn);
-	INIT_LIST_HEAD(&cbdb->handlers);
+	hash_init(cbdb->handlers_hash);
 	cbdb->backend_device = &cbdt->cbd_backends_dev->backend_devs[cbdb->backend_id];
 
-	mutex_init(&cbdb->lock);
+	spin_lock_init(&cbdb->lock);
 
 	b_info->state = cbd_backend_state_running;
 
@@ -270,6 +278,7 @@ int cbd_backend_start(struct cbd_transport *cbdt, char *path, u32 backend_id, u3
 		cache_opts.start_gc = false;
 		cache_opts.init_keys = false;
 		cache_opts.bdev_file = backend->bdev_file;
+		cache_opts.dev_size = backend_info->dev_size;
 		backend->cbd_cache = cbd_cache_alloc(cbdt, &cache_opts);
 		if (!backend->cbd_cache) {
 			ret = -ENOMEM;
@@ -280,47 +289,44 @@ int cbd_backend_start(struct cbd_transport *cbdt, char *path, u32 backend_id, u3
 	return 0;
 
 backend_stop:
-	cbd_backend_stop(cbdt, backend_id, true);
+	cbd_backend_stop(cbdt, backend_id);
 
 	return ret;
 }
 
-int cbd_backend_stop(struct cbd_transport *cbdt, u32 backend_id, bool force)
+int cbd_backend_stop(struct cbd_transport *cbdt, u32 backend_id)
 {
 	struct cbd_backend *cbdb;
 	struct cbd_backend_info *backend_info;
-	struct cbd_handler *handler, *next;
 
 	cbdb = cbdt_get_backend(cbdt, backend_id);
 	if (!cbdb)
 		return -ENOENT;
 
-	mutex_lock(&cbdb->lock);
-	if (!list_empty(&cbdb->handlers) && !force) {
-		mutex_unlock(&cbdb->lock);
+	spin_lock(&cbdb->lock);
+	if (!hash_empty(cbdb->handlers_hash)) {
+		spin_unlock(&cbdb->lock);
+		return -EBUSY;
+	}
+
+	if (cbdb->backend_info->state == cbd_backend_state_removing) {
+		spin_unlock(&cbdb->lock);
 		return -EBUSY;
 	}
 
 	cbdb->backend_info->state = cbd_backend_state_removing;
+	spin_unlock(&cbdb->lock);
+
 	cbdt_del_backend(cbdt, cbdb);
 
 	if (cbdb->cbd_cache)
 		cbd_cache_destroy(cbdb->cbd_cache);
 
 	cancel_delayed_work_sync(&cbdb->hb_work);
-	cancel_delayed_work_sync(&cbdb->hb_work);
 	cancel_delayed_work_sync(&cbdb->state_work);
-	cancel_delayed_work_sync(&cbdb->state_work);
-
-	mutex_unlock(&cbdb->lock);
-	list_for_each_entry_safe(handler, next, &cbdb->handlers, handlers_node) {
-		cbd_handler_destroy(handler);
-	}
-	mutex_lock(&cbdb->lock);
 
 	backend_info = cbdt_get_backend_info(cbdt, cbdb->backend_id);
 	backend_info->state = cbd_backend_state_none;
-	mutex_unlock(&cbdb->lock);
 
 	drain_workqueue(cbdb->task_wq);
 	destroy_workqueue(cbdb->task_wq);
@@ -354,4 +360,18 @@ int cbd_backend_clear(struct cbd_transport *cbdt, u32 backend_id)
 bool cbd_backend_cache_on(struct cbd_backend_info *backend_info)
 {
 	return (backend_info->cache_info.n_segs != 0);
+}
+
+void cbd_backend_notify(struct cbd_backend *cbdb, u32 seg_id)
+{
+	struct cbd_handler *handler;
+
+	handler = cbdb_get_handler(cbdb, seg_id);
+	/*
+	 * If the handler is not ready, return directly and
+	 * wait handler to queue the handle_work in creating
+	 */
+	if (!handler)
+		return;
+	cbd_handler_notify(handler);
 }

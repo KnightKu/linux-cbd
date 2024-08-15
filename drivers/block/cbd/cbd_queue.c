@@ -194,12 +194,14 @@ int cbd_queue_req_to_backend(struct cbd_request *cbd_req)
 #ifdef CONFIG_CBD_CRC
 	cbd_req_crc_init(cbd_req);
 #endif
-	queue_delayed_work(cbdq->cbd_blkdev->task_wq, &cbdq->complete_work, 0);
-
 	CBDC_UPDATE_SUBMR_HEAD(cbdq->channel_info->submr_head,
 			sizeof(struct cbd_se),
 			cbdq->channel.submr_size);
 	spin_unlock(&cbdq->channel.submr_lock);
+
+	if (cbdq->cbd_blkdev->backend)
+		cbd_backend_notify(cbdq->cbd_blkdev->backend, cbdq->channel.seg_id);
+	queue_delayed_work(cbdq->cbd_blkdev->task_wq, &cbdq->complete_work, 0);
 
 	return 0;
 
@@ -207,11 +209,8 @@ err:
 	return ret;
 }
 
-static void cbd_queue_workfn(struct work_struct *work)
+static void cbd_queue_req(struct cbd_queue *cbdq, struct cbd_request *cbd_req)
 {
-	struct cbd_request *cbd_req =
-		container_of(work, struct cbd_request, work);
-	struct cbd_queue *cbdq = cbd_req->cbdq;
 	int ret;
 
 	if (cbdq->cbd_blkdev->cbd_cache) {
@@ -448,8 +447,7 @@ static blk_status_t cbd_queue_rq(struct blk_mq_hw_ctx *hctx,
 		return BLK_STS_IOERR;
 	}
 
-	INIT_WORK(&cbd_req->work, cbd_queue_workfn);
-	queue_work(cbdq->cbd_blkdev->task_wq, &cbd_req->work);
+	cbd_queue_req(cbdq, cbd_req);
 
 	return BLK_STS_OK;
 }
@@ -478,6 +476,9 @@ static int cbd_queue_channel_init(struct cbd_queue *cbdq, u32 channel_id)
 
 	cbd_channel_init(&cbdq->channel, cbdt, channel_id);
 	cbdq->channel_info = cbdq->channel.channel_info;
+
+	if (!cbd_blkdev->backend)
+		cbdq->channel_info->polling = true;
 
 	cbdq->channel.data_head = cbdq->channel.data_tail = 0;
 	cbdq->channel_info->submr_tail = cbdq->channel_info->submr_head = 0;
@@ -542,7 +543,6 @@ void cbd_queue_stop(struct cbd_queue *cbdq)
 		return;
 
 	atomic_set(&cbdq->state, cbd_queue_state_removing);
-	cancel_delayed_work_sync(&cbdq->complete_work);
 	cancel_delayed_work_sync(&cbdq->complete_work);
 
 	spin_lock(&cbdq->inflight_reqs_lock);

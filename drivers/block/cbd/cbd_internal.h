@@ -20,6 +20,7 @@
 #include <linux/uuid.h>
 #include <linux/bitfield.h>
 #include <linux/crc32.h>
+#include <linux/hashtable.h>
 
 /*
  * As shared memory is supported in CXL3.0 spec, we can transfer data via CXL shared memory.
@@ -563,6 +564,8 @@ struct cbd_channel_info {
 	u8	backend_state;
 	u32	backend_id;
 
+	u32	polling:1;
+
 	u32	submr_head;
 	u32	submr_tail;
 
@@ -611,7 +614,9 @@ struct cbd_cache_seg_info {
 	u64 gen;
 };
 
-#define CBD_CACHE_SEG_FLAGS_HAS_NEXT	1
+#define CBD_CACHE_SEG_FLAGS_HAS_NEXT	(1 << 0)
+#define CBD_CACHE_SEG_FLAGS_WB_DONE	(1 << 1)
+#define CBD_CACHE_SEG_FLAGS_GC_DONE	(1 << 2)
 
 enum cbd_cache_blkdev_state {
 	cbd_cache_blkdev_state_none = 0,
@@ -624,8 +629,10 @@ struct cbd_cache_segment {
 	u32			cache_seg_id;	/* index in cache->segments */
 	u32			used;
 	u64			gen;
+	spinlock_t		gen_lock;
 	struct cbd_cache_seg_info *cache_seg_info;
 	struct cbd_segment	segment;
+	atomic_t		keys;
 };
 
 struct cbd_cache_pos {
@@ -649,26 +656,97 @@ struct cbd_cache_info {
 	struct cbd_cache_pos_onmedia dirty_tail_pos;
 };
 
+struct cbd_cache_tree {
+	struct rb_root			root;
+	spinlock_t			tree_lock;
+};
+
+struct cbd_cache_data_head {
+	spinlock_t			data_head_lock;
+	struct cbd_cache_pos		head_pos;
+};
+
+struct cbd_cache_key {
+	struct cbd_cache *cache;
+	struct cbd_cache_tree *cache_tree;
+	struct kref ref;
+
+	struct rb_node rb_node;
+	struct list_head list_node;
+
+	u64		off;
+	u32		len;
+	u64		flags;
+
+	struct cbd_cache_pos	cache_pos;
+
+	u64		seg_gen;
+};
+
+struct cbd_cache_key_onmedia {
+	u64	off;
+	u32	len;
+
+	u32	flags;
+
+	u32	cache_seg_id;
+	u32	cache_seg_off;
+
+	u64	seg_gen;
+#ifdef CBD_CRC
+	u32	data_crc;
+#endif
+};
+
+#define CBD_CACHE_KEY_FLAGS_LAST	(1 << 0)
+
+struct cbd_cache_kset_onmedia {
+	u32	crc;
+	u64	magic;
+	u64	flags;
+	u32	key_num;
+	struct cbd_cache_key_onmedia	data[];
+};
+
+#define CBD_KSET_FLAGS_LAST	(1 << 0)
+
+#define CBD_KSET_MAGIC		0x676894a64e164f1aULL
+
+struct cbd_cache_kset {
+	spinlock_t			kset_lock;
+	struct cbd_cache_kset_onmedia	*kset_onmedia;
+};
+
+enum cbd_cache_state {
+	cbd_cache_state_none = 0,
+	cbd_cache_state_running,
+	cbd_cache_state_stopping
+};
+
 struct cbd_cache {
 	struct cbd_transport		*cbdt;
 	struct cbd_cache_info		*cache_info;
 	u32				cache_id;	/* same with related backend->backend_id */
 
-	struct mutex			data_head_lock;
-	struct cbd_cache_pos		data_head;
-	struct mutex			key_head_lock;
+	u32				n_heads;
+	struct cbd_cache_data_head	*data_heads;
+
+	spinlock_t			key_head_lock;
 	struct cbd_cache_pos		key_head;
+	u32				n_ksets;
+	struct cbd_cache_kset		*ksets;
 
 	struct cbd_cache_pos		key_tail;
 	struct cbd_cache_pos		dirty_tail;
 
 	struct kmem_cache		*key_cache;
-	struct rb_root			cache_tree;
-	struct mutex			tree_lock;
+	u32				n_trees;
+	struct cbd_cache_tree		*cache_trees;
 
 	struct workqueue_struct		*cache_wq;
 
 	struct file			*bdev_file;
+	u64				dev_size;
 	struct delayed_work		writeback_work;
 	struct delayed_work		gc_work;
 	struct bio_set			*bioset;
@@ -694,6 +772,8 @@ struct cbd_cache_opts {
 	bool start_writeback;
 	bool start_gc;
 	bool init_keys;
+	u64 dev_size;
+	u32 n_paral;
 	struct file *bdev_file;	/* needed for start_writeback is true */
 };
 
@@ -712,15 +792,18 @@ struct cbd_handler {
 	u32			se_to_handle;
 	u64			req_tid_expected;
 
+	u32			polling:1;
+
 	struct delayed_work	handle_work;
 	struct cbd_worker_cfg	handle_worker_cfg;
 
-	struct list_head	handlers_node;
+	struct hlist_node	hash_node;
 	struct bio_set		bioset;
 };
 
 void cbd_handler_destroy(struct cbd_handler *handler);
 int cbd_handler_create(struct cbd_backend *cbdb, u32 seg_id);
+void cbd_handler_notify(struct cbd_handler *handler);
 
 /* cbd_backend */
 CBD_DEVICE(backend);
@@ -752,12 +835,14 @@ struct cbd_backend_io {
 	struct cbd_handler	*handler;
 };
 
+#define CBD_BACKENDS_HANDLER_BITS	7
+
 struct cbd_backend {
 	u32			backend_id;
 	char			path[CBD_PATH_LEN];
 	struct cbd_transport	*cbdt;
 	struct cbd_backend_info *backend_info;
-	struct mutex		lock;
+	spinlock_t		lock;
 
 	struct block_device	*bdev;
 	struct file		*bdev_file;
@@ -767,7 +852,7 @@ struct cbd_backend {
 	struct delayed_work	hb_work; /* heartbeat work */
 
 	struct list_head	node; /* cbd_transport->backends */
-	struct list_head	handlers;
+	DECLARE_HASHTABLE(handlers_hash, CBD_BACKENDS_HANDLER_BITS);
 
 	struct cbd_backend_device *backend_device;
 
@@ -777,12 +862,13 @@ struct cbd_backend {
 };
 
 int cbd_backend_start(struct cbd_transport *cbdt, char *path, u32 backend_id, u32 cache_segs);
-int cbd_backend_stop(struct cbd_transport *cbdt, u32 backend_id, bool force);
+int cbd_backend_stop(struct cbd_transport *cbdt, u32 backend_id);
 int cbd_backend_clear(struct cbd_transport *cbdt, u32 backend_id);
-void cbdb_add_handler(struct cbd_backend *cbdb, struct cbd_handler *handler);
+int cbdb_add_handler(struct cbd_backend *cbdb, struct cbd_handler *handler);
 void cbdb_del_handler(struct cbd_backend *cbdb, struct cbd_handler *handler);
 bool cbd_backend_info_is_alive(struct cbd_backend_info *info);
 bool cbd_backend_cache_on(struct cbd_backend_info *backend_info);
+void cbd_backend_notify(struct cbd_backend *cbdb, u32 seg_id);
 
 /* cbd_queue */
 enum cbd_op {
@@ -927,6 +1013,8 @@ struct cbd_blkdev {
 	u32			blkdev_id; /* index in transport blkdev area */
 	u32			backend_id;
 	int			mapped_id; /* id in block device such as: /dev/cbd0 */
+
+	struct cbd_backend	*backend; /* reference to backend if blkdev and backend on the same host */
 
 	int			major;		/* blkdev assigned major */
 	int			minor;

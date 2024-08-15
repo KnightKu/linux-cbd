@@ -275,6 +275,9 @@ int cbd_blkdev_start(struct cbd_transport *cbdt, u32 backend_id, u32 queues)
 
 	mutex_init(&cbd_blkdev->lock);
 
+	if (backend_info->host_id == cbdt->host->host_id)
+		cbd_blkdev->backend = cbdt_get_backend(cbdt, backend_id);
+
 	ret = cbdt_get_empty_blkdev_id(cbdt, &cbd_blkdev->blkdev_id);
 	if (ret < 0)
 		goto blkdev_free;
@@ -315,6 +318,8 @@ int cbd_blkdev_start(struct cbd_transport *cbdt, u32 backend_id, u32 queues)
 		cache_opts.start_writeback = false;
 		cache_opts.start_gc = true;
 		cache_opts.init_keys = true;
+		cache_opts.dev_size = dev_size;
+		cache_opts.n_paral = cbd_blkdev->num_queues;
 		cbd_blkdev->cbd_cache = cbd_cache_alloc(cbdt, &cache_opts);
 		if (!cbd_blkdev->cbd_cache) {
 			ret = -ENOMEM;
