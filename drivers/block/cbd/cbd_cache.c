@@ -1,5 +1,7 @@
 #include "cbd_internal.h"
 
+#define CBD_CACHE_PARAL_MAX		(128)
+
 #define CBD_CACHE_TREE_SIZE		(4 * 1024 * 1024)
 #define CBD_CACHE_TREE_SIZE_MASK	0x3FFFFF
 #define CBD_CACHE_TREE_SIZE_SHIFT	22
@@ -51,8 +53,6 @@ again:
 		cache_seg = cache_seg_get_next(cache_seg);
 		pos->segment = &cache_seg->segment;
 
-		cbd_cache_debug(cache_seg->cache, "sanitize next segment: %u\n",
-				cache_seg->cache_seg_id);
 		goto again;
 	}
 }
@@ -126,11 +126,6 @@ again:
 	}
 
 	set_bit(seg_id, cache->seg_map);
-	cbd_cache_debug(cache, "set seg %u\n", seg_id);
-
-#ifdef CONFIG_CBD_DEBUG
-	dump_seg_map(cache);
-#endif
 	cache->last_cache_seg = seg_id;
 	spin_unlock(&cache->seg_map_lock);
 
@@ -163,6 +158,10 @@ static void cache_seg_invalidate(struct cbd_cache_segment *cache_seg)
 	spin_unlock(&cache->seg_map_lock);
 
 	cbd_cache_debug(cache, "gc invalidat seg: %u\n", cache_seg->cache_seg_id);
+
+#ifdef CBD_DEBUG
+	dump_seg_map(cache);
+#endif
 }
 
 static void cache_seg_put(struct cbd_cache_segment *cache_seg)
@@ -373,10 +372,6 @@ static void cache_kset_close(struct cbd_cache *cache, u32 kset_id)
 	kset_onmedia->magic = CBD_KSET_MAGIC;
 	kset_onmedia->crc = cache_kset_crc(kset_onmedia);
 	kset->kset_onmedia = NULL;
-
-	cbd_cache_debug(cache, "close kset: %u, magic: %llx, crc: %u, key_num: %u\n",
-			kset_id, kset_onmedia->magic, kset_onmedia->crc,
-			kset_onmedia->key_num);
 }
 
 static int cache_kset_init(struct cbd_cache *cache, u32 kset_id);
@@ -675,13 +670,13 @@ static int submit_backing_io(struct cbd_cache *cache, struct cbd_request *cbd_re
 	new_req->data_len = len;
 	new_req->req = NULL;
 
-	kref_get(&cbd_req->ref);
+	cbd_req_get(cbd_req);
 	new_req->parent = cbd_req;
 	new_req->kmem_cache = cache->req_cache;
 
 	ret = cbd_queue_req_to_backend(new_req);
 
-	cbd_req_end(new_req, ret);
+	cbd_req_put(new_req, ret);
 
 	return ret;
 }
@@ -872,9 +867,8 @@ next:
 	total_io_done += io_done;
 	io_done = 0;
 
-	if (!ret && total_io_done < cbd_req->data_len) {
+	if (!ret && total_io_done < cbd_req->data_len)
 		goto next_tree;
-	}
 
 	return 0;
 out:
@@ -1065,6 +1059,10 @@ static int cache_replay(struct cbd_cache *cache)
 		}
 	}
 
+#ifdef CBD_DEBUG
+	dump_cache(cache);
+#endif
+
 	spin_lock(&cache->key_head_lock);
 	cache_pos_copy(&cache->key_head, pos);
 	spin_unlock(&cache->key_head_lock);
@@ -1210,11 +1208,14 @@ static int cache_writeback(struct cbd_cache *cache, struct cbd_cache_key *key)
 	addr = cache_pos_addr(pos);
 	off = key->off;
 
-	/* TODO write back in async way */
+	/* TODO write back in async way, but it should consider
+	 * the sequence of overwrites. E.g, K1 writes A at 0-4K,
+	 * K2 after K1 writes B to 0-4K, we have to ensure K1
+	 * to be written back before K2.
+	 */
 	written = kernel_write(cache->bdev_file, addr, key->len, &off);
 	if (written != key->len)
 		return -EIO;
-	vfs_fsync(cache->bdev_file, 0);
 
 	return 0;
 }
@@ -1260,6 +1261,8 @@ static void writeback_fn(struct work_struct *work)
 				return;
 			}
 		}
+
+		vfs_fsync(cache->bdev_file, 1);
 
 		cache_pos_advance(pos, CBD_KSET_SIZE, false);
 		cache_pos_encode(cache, &cache->cache_info->dirty_tail_pos, &cache->dirty_tail);
@@ -1429,6 +1432,13 @@ struct cbd_cache *cbd_cache_alloc(struct cbd_transport *cbdt,
 	int ret;
 	int i;
 
+	/* options sanitize */
+	if (opts->n_paral > CBD_CACHE_PARAL_MAX) {
+		cbd_cache_info(cache, "n_paral too large, change to max %u.\n",
+				CBD_CACHE_PARAL_MAX);
+		opts->n_paral = CBD_CACHE_PARAL_MAX;
+	}
+
 	cache_info = opts->cache_info;
 	backend_info = container_of(cache_info, struct cbd_backend_info, cache_info);
 	backend_id = get_backend_id(cbdt, backend_info);
@@ -1543,7 +1553,7 @@ struct cbd_cache *cbd_cache_alloc(struct cbd_transport *cbdt,
 		}
 
 		cache->n_ksets = opts->n_paral;
-		cache->ksets = kzalloc(sizeof(struct cbd_cache_kset) * cache->n_ksets, GFP_KERNEL);
+		cache->ksets = kcalloc(cache->n_ksets, sizeof(struct cbd_cache_kset), GFP_KERNEL);
 		if (!cache->ksets) {
 			ret = -ENOMEM;
 			goto destroy_cache;
@@ -1559,7 +1569,7 @@ struct cbd_cache *cbd_cache_alloc(struct cbd_transport *cbdt,
 
 		/* Init caceh->data_heads */
 		cache->n_heads = opts->n_paral;
-		cache->data_heads = kzalloc(sizeof(struct cbd_cache_data_head) * cache->n_heads, GFP_KERNEL);
+		cache->data_heads = kcalloc(cache->n_heads, sizeof(struct cbd_cache_data_head), GFP_KERNEL);
 		if (!cache->data_heads) {
 			ret = -ENOMEM;
 			goto destroy_cache;
@@ -1594,6 +1604,9 @@ void cbd_cache_destroy(struct cbd_cache *cache)
 		cache_writeback_exit(cache);
 
 	if (cache->init_keys) {
+#ifdef CBD_DEBUG
+		dump_cache(cache);
+#endif
 		for (i = 0; i < cache->n_trees; i++) {
 			struct cbd_cache_tree *cache_tree;
 			struct rb_node *node;
@@ -1628,11 +1641,8 @@ void cbd_cache_destroy(struct cbd_cache *cache)
 	for (i = 0; i < cache->n_segs; i++)
 		cache_seg_exit(&cache->segments[i]);
 
-	if (cache->data_heads)
-		kfree(cache->data_heads);
-
-	if (cache->ksets)
-		kfree(cache->ksets);
+	kfree(cache->data_heads);
+	kfree(cache->ksets);
 
 	if (cache->cache_trees)
 		vfree(cache->cache_trees);
