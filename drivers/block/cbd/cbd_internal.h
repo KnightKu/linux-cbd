@@ -628,7 +628,6 @@ struct cbd_cache_segment {
 	struct cbd_cache	*cache;
 	u32			cache_seg_id;	/* index in cache->segments */
 	u32			used;
-	u64			gen;
 	spinlock_t		gen_lock;
 	struct cbd_cache_seg_info *cache_seg_info;
 	struct cbd_segment	segment;
@@ -681,6 +680,9 @@ struct cbd_cache_key {
 	struct cbd_cache_pos	cache_pos;
 
 	u64		seg_gen;
+#ifdef CONFIG_CBD_CRC
+	u32	data_crc;
+#endif
 };
 
 struct cbd_cache_key_onmedia {
@@ -693,7 +695,7 @@ struct cbd_cache_key_onmedia {
 	u32	cache_seg_off;
 
 	u64	seg_gen;
-#ifdef CBD_CRC
+#ifdef CONFIG_CBD_CRC
 	u32	data_crc;
 #endif
 };
@@ -714,7 +716,7 @@ struct cbd_cache_kset_onmedia {
 
 struct cbd_cache_kset {
 	spinlock_t			kset_lock;
-	struct cbd_cache_kset_onmedia	*kset_onmedia;
+	struct cbd_cache_kset_onmedia	kset_onmedia;
 };
 
 enum cbd_cache_state {

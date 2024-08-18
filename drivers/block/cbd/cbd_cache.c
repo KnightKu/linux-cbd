@@ -6,6 +6,10 @@
 #define CBD_CACHE_TREE_SIZE_MASK	0x3FFFFF
 #define CBD_CACHE_TREE_SIZE_SHIFT	22
 
+#define CBD_KSET_KEYS_MAX		128
+#define CBD_KSET_ONMEDIA_SIZE_MAX	struct_size_t(struct cbd_cache_kset_onmedia, data, CBD_KSET_KEYS_MAX)
+#define CBD_KSET_SIZE			(sizeof(struct cbd_cache_kset) + sizeof(struct cbd_cache_key_onmedia) * CBD_KSET_KEYS_MAX)
+
 static inline struct cbd_cache_tree *get_cache_tree(struct cbd_cache *cache, u64 off)
 {
 	return &cache->cache_trees[off >> CBD_CACHE_TREE_SIZE_SHIFT];
@@ -27,7 +31,7 @@ static inline u32 get_kset_id(struct cbd_cache *cache, u64 off)
 
 static inline struct cbd_cache_kset *get_kset(struct cbd_cache *cache, u32 kset_id)
 {
-	return &cache->ksets[kset_id];
+	return (void *)cache->ksets + CBD_KSET_SIZE * kset_id;
 }
 
 static struct cbd_cache_segment *cache_seg_get_next(struct cbd_cache_segment *cache_seg)
@@ -70,7 +74,7 @@ static void dump_seg_map(struct cbd_cache *cache)
 
 	cbd_cache_info(cache, "------ start seg map dump -------");
 	for (i = 0; i < cache->n_segs; i++)
-		cbd_cache_debug(cache, "seg: %u, %u", i, test_bit(i, cache->seg_map));
+		cbd_cache_info(cache, "seg: %u, %u", i, test_bit(i, cache->seg_map));
 	cbd_cache_info(cache, "------ end seg map dump -------");
 }
 
@@ -89,7 +93,7 @@ static void dump_cache(struct cbd_cache *cache)
 		node = rb_first(&cache_tree->root);
 		while (node) {
 			key = CACHE_KEY(node);
-			cbd_cache_debug(cache, "key: %p gen: %llu key->off: %llu, len: %u, cache: %p segid: %u\n",
+			cbd_cache_info(cache, "key: %p gen: %llu key->off: %llu, len: %u, cache: %p segid: %u\n",
 					key, key->seg_gen, key->off, key->len, cache_pos_addr(&key->cache_pos),
 					key->cache_pos.cache_seg->cache_seg_id);
 			node = rb_next(node);
@@ -150,7 +154,7 @@ static void cache_seg_invalidate(struct cbd_cache_segment *cache_seg)
 	cache = cache_seg->cache;
 
 	spin_lock(&cache_seg->gen_lock);
-	cache_seg->gen++;
+	cache_seg->cache_seg_info->gen++;
 	spin_unlock(&cache_seg->gen_lock);
 
 	spin_lock(&cache->seg_map_lock);
@@ -159,7 +163,7 @@ static void cache_seg_invalidate(struct cbd_cache_segment *cache_seg)
 
 	cbd_cache_debug(cache, "gc invalidat seg: %u\n", cache_seg->cache_seg_id);
 
-#ifdef CBD_DEBUG
+#ifdef CONFIG_CBD_DEBUG
 	dump_seg_map(cache);
 #endif
 }
@@ -220,11 +224,6 @@ static void cache_key_destroy(struct kref *ref)
 	struct cbd_cache *cache = key->cache;
 
 	kmem_cache_free(cache->key_cache, key);
-}
-
-static void cache_key_get(struct cbd_cache_key *key)
-{
-	kref_get(&key->ref);
 }
 
 static void cache_key_put(struct cbd_cache_key *key)
@@ -318,6 +317,15 @@ static inline void cache_key_delete(struct cbd_cache_key *key)
 	cache_key_put(key);
 }
 
+static inline u32 cache_key_data_crc(struct cbd_cache_key *key)
+{
+	void *data;
+
+	data = cache_pos_addr(&key->cache_pos);
+
+	return crc32(0, data, key->len);
+}
+
 static void cache_key_encode(struct cbd_cache_key_onmedia *key_onmedia,
 			     struct cbd_cache_key *key)
 {
@@ -330,9 +338,8 @@ static void cache_key_encode(struct cbd_cache_key_onmedia *key_onmedia,
 	key_onmedia->seg_gen = key->seg_gen;
 	key_onmedia->flags = key->flags;
 
-#ifdef CBD_CRC
-	/* TODO */
-	key_onmedia->data_crc = 0;
+#ifdef CONFIG_CBD_CRC
+	key_onmedia->data_crc = key->data_crc;
 #endif
 }
 
@@ -348,6 +355,10 @@ static void cache_key_decode(struct cbd_cache_key_onmedia *key_onmedia, struct c
 
 	key->seg_gen = key_onmedia->seg_gen;
 	key->flags = key_onmedia->flags;
+
+#ifdef CONFIG_CBD_CRC
+	key->data_crc = key_onmedia->data_crc;
+#endif
 }
 
 static inline u32 cache_kset_crc(struct cbd_cache_kset_onmedia *kset_onmedia)
@@ -355,26 +366,78 @@ static inline u32 cache_kset_crc(struct cbd_cache_kset_onmedia *kset_onmedia)
 	return crc32(0, (void *)kset_onmedia + 4, struct_size(kset_onmedia, data, kset_onmedia->key_num) - 4);
 }
 
-#define CBD_KSET_KEYS_MAX	128
-#define CBD_KSET_SIZE		struct_size_t(struct cbd_cache_kset_onmedia, data, CBD_KSET_KEYS_MAX)
-
-static void cache_kset_close(struct cbd_cache *cache, u32 kset_id)
+static inline u32 get_kset_onmedia_size(struct cbd_cache_kset_onmedia *kset_onmedia)
 {
-	struct cbd_cache_kset *kset;
+	return struct_size_t(struct cbd_cache_kset_onmedia, data, kset_onmedia->key_num);
+}
+
+static inline u32 get_seg_remain(struct cbd_cache_pos *pos)
+{
+	struct cbd_cache_segment *cache_seg;
+	struct cbd_segment *segment;
+	u32 seg_remain;
+
+	cache_seg = pos->cache_seg;
+	segment = &cache_seg->segment;
+	seg_remain = segment->data_size - pos->seg_off;
+
+	return seg_remain;
+}
+
+static int cache_kset_close(struct cbd_cache *cache, u32 kset_id)
+{
 	struct cbd_cache_kset_onmedia *kset_onmedia;
+	struct cbd_cache_kset *kset;
+	u32 kset_onmedia_size;
+	int ret;
 
 	kset = get_kset(cache, kset_id);
-	kset_onmedia = kset->kset_onmedia;
+	kset_onmedia = &kset->kset_onmedia;
 
-	if (!kset_onmedia || !kset_onmedia->key_num)
-		return;
+	if (!kset_onmedia->key_num)
+		return 0;
+
+	kset_onmedia_size = struct_size(kset_onmedia, data, kset_onmedia->key_num);
+
+	spin_lock(&cache->key_head_lock);
+again:
+	if (get_seg_remain(&cache->key_head) < CBD_KSET_ONMEDIA_SIZE_MAX) {
+		struct cbd_cache_segment *cur_seg, *next_seg;
+
+		next_seg = get_cache_segment(cache);
+		if (!next_seg) {
+			ret = -EBUSY;
+			goto out;
+		}
+
+		cur_seg = cache->key_head.cache_seg;
+
+		cur_seg->cache_seg_info->next_cache_seg_id = next_seg->cache_seg_id;
+		cur_seg->cache_seg_info->flags |= CBD_CACHE_SEG_FLAGS_HAS_NEXT;
+
+		cache->key_head.cache_seg = next_seg;
+		cache->key_head.seg_off = 0;
+		goto again;
+	}
+
+	if (get_seg_remain(&cache->key_head) - kset_onmedia_size < CBD_KSET_ONMEDIA_SIZE_MAX)
+		kset_onmedia->flags |= CBD_KSET_FLAGS_LAST;
 
 	kset_onmedia->magic = CBD_KSET_MAGIC;
 	kset_onmedia->crc = cache_kset_crc(kset_onmedia);
-	kset->kset_onmedia = NULL;
+
+	memcpy(get_key_head_addr(cache), kset_onmedia, kset_onmedia_size);
+	memset(kset_onmedia, 0, sizeof(struct cbd_cache_kset_onmedia));
+
+	cache_pos_advance(&cache->key_head, kset_onmedia_size, false);
+
+	ret = 0;
+out:
+	spin_unlock(&cache->key_head_lock);
+
+	return ret;
 }
 
-static int cache_kset_init(struct cbd_cache *cache, u32 kset_id);
 static int cache_key_append(struct cbd_cache *cache, struct cbd_cache_key *key)
 {
 	struct cbd_cache_kset *kset;
@@ -384,21 +447,23 @@ static int cache_key_append(struct cbd_cache *cache, struct cbd_cache_key *key)
 	int ret = 0;
 
 	kset = get_kset(cache, kset_id);
+	kset_onmedia = &kset->kset_onmedia;
 
 	spin_lock(&kset->kset_lock);
-	if (!kset->kset_onmedia) {
-		ret = cache_kset_init(cache, kset_id);
-		if (ret)
-			goto out;
-	}
-	kset_onmedia = kset->kset_onmedia;
-
 	key_onmedia = &kset_onmedia->data[kset_onmedia->key_num];
+#ifdef CONFIG_CBD_CRC
+	key->data_crc = cache_key_data_crc(key);
+#endif
 	cache_key_encode(key_onmedia, key);
 
-	if (++kset_onmedia->key_num == CBD_KSET_KEYS_MAX)
-		cache_kset_close(cache, kset_id);
-
+	if (++kset_onmedia->key_num == CBD_KSET_KEYS_MAX) {
+		ret = cache_kset_close(cache, kset_id);
+		if (ret) {
+			/* return ocuppied key back */
+			kset_onmedia->key_num--;
+			goto out;
+		}
+	}
 out:
 	spin_unlock(&kset->kset_lock);
 	return ret;
@@ -497,7 +562,7 @@ out:
 
 static inline bool cache_key_invalid(struct cbd_cache_key *key)
 {
-	return (key->seg_gen < key->cache_pos.cache_seg->gen);
+	return (key->seg_gen < key->cache_pos.cache_seg->cache_seg_info->gen);
 }
 
 static int cache_insert_key(struct cbd_cache *cache, struct cbd_cache_key *key, bool new_key)
@@ -549,15 +614,13 @@ again:
 		if (ret == -EAGAIN)
 			goto again;
 		else if (ret)
-			goto err;
+			BUG_ON(true);
 	}
 
 	rb_link_node(&key->rb_node, parent, new);
 	rb_insert_color(&key->rb_node, &cache_tree->root);
 
 	return 0;
-err:
-	return ret;
 }
 
 static void cache_pos_copy(struct cbd_cache_pos *dst, struct cbd_cache_pos *src)
@@ -583,7 +646,7 @@ again:
 		seg_remain = 0;
 	} else {
 		cache_pos_copy(&key->cache_pos, &data_head->head_pos);
-		key->seg_gen = key->cache_pos.cache_seg->gen;
+		key->seg_gen = key->cache_pos.cache_seg->cache_seg_info->gen;
 
 		head_pos = &data_head->head_pos;
 		cache_seg = head_pos->cache_seg;
@@ -635,7 +698,7 @@ static int cache_copy_to_bio(struct cbd_cache *cache, struct cbd_request *cbd_re
 	struct cbd_segment *segment = &cache_seg->segment;
 
 	spin_lock(&cache_seg->gen_lock);
-	if (key_gen < cache_seg->gen) {
+	if (key_gen < cache_seg->cache_seg_info->gen) {
 		spin_unlock(&cache_seg->gen_lock);
 		return -EINVAL;
 	}
@@ -686,7 +749,8 @@ static int cache_read(struct cbd_cache *cache, struct cbd_request *cbd_req)
 	struct rb_node **new, *parent = NULL;
 	struct cbd_cache_tree *cache_tree;
 	struct cbd_cache_key *key_tmp = NULL, *key_next;
-	struct rb_node	*prev_node = NULL;
+	struct rb_node *node_tmp;
+	struct rb_node*prev_node = NULL;
 	struct cbd_cache_key key_data = { .off = cbd_req->off, .len = cbd_req->data_len };
 	struct cbd_cache_key *key = &key_data;
 	struct cbd_cache_pos pos;
@@ -732,13 +796,6 @@ cleanup_tree:
 
 	if (!prev_node)
 		prev_node = rb_first(&cache_tree->root);
-
-	struct rb_node *node_tmp;
-
-	if (!prev_node) {
-		ret = submit_backing_io(cache, cbd_req, 0, cbd_req->data_len);
-		goto out;
-	}
 
 	node_tmp = prev_node;
 	while (node_tmp) {
@@ -904,6 +961,8 @@ static int cache_write(struct cbd_cache *cache, struct cbd_request *cbd_req)
 
 		ret = cache_data_alloc(cache, key, cbd_req->cbdq->index);
 		if (ret) {
+			cbd_cache_debug(cache, "no cache data available for key %llu:%u\n",
+					key->off, key->len);
 			cache_key_put(key);
 			goto err;
 		}
@@ -917,18 +976,6 @@ static int cache_write(struct cbd_cache *cache, struct cbd_request *cbd_req)
 		BUG_ON(!key->cache_pos.cache_seg);
 		cache_copy_from_bio(cache, key, cbd_req->bio, io_done);
 
-		cache_key_get(key); /* put after io_done += key->len */
-
-		cache_tree = get_cache_tree(cache, key->off);
-		spin_lock(&cache_tree->tree_lock);
-		ret = cache_insert_key(cache, key, true);
-		spin_unlock(&cache_tree->tree_lock);
-		if (ret) {
-			cache_seg_put(key->cache_pos.cache_seg);
-			cache_key_put(key);
-			goto err;
-		}
-
 		/* append key into key head pos */
 		ret = cache_key_append(cache, key);
 		if (ret) {
@@ -938,7 +985,14 @@ static int cache_write(struct cbd_cache *cache, struct cbd_request *cbd_req)
 		}
 
 		io_done += key->len;
-		cache_key_put(key);
+
+		/* add key into cache_tree, after this, key could be changed
+		 * by other overlap key insert, so we need key_append before insert_key
+		 */
+		cache_tree = get_cache_tree(cache, key->off);
+		spin_lock(&cache_tree->tree_lock);
+		cache_insert_key(cache, key, true);
+		spin_unlock(&cache_tree->tree_lock);
 	}
 
 	ret = 0;
@@ -949,14 +1003,16 @@ err:
 static int cache_flush(struct cbd_cache *cache)
 {
 	struct cbd_cache_kset *kset;
-	u32 i;
+	u32 i, ret;
 
 	for (i = 0; i < cache->n_ksets; i++) {
 		kset = get_kset(cache, i);
 
 		spin_lock(&kset->kset_lock);
-		cache_kset_close(cache, i);
+		ret = cache_kset_close(cache, i);
 		spin_unlock(&kset->kset_lock);
+		if (ret)
+			return ret;
 	}
 
 	return 0;
@@ -1029,9 +1085,19 @@ static int cache_replay(struct cbd_cache *cache)
 			}
 
 			cache_key_decode(key_onmedia, key);
+#ifdef CONFIG_CBD_CRC
+			if (key->data_crc != cache_key_data_crc(key)) {
+				cbd_cache_debug(cache, "key: %llu:%u seg %u:%u data_crc error: %x, expected: %x\n",
+						key->off, key->len,key->cache_pos.cache_seg->cache_seg_id,
+						key->cache_pos.seg_off, cache_key_data_crc(key), key->data_crc);
+				ret = -EIO;
+				cache_key_put(key);
+				goto out;
+			}
+#endif
 			set_bit(key->cache_pos.cache_seg->cache_seg_id, cache->seg_map);
 
-			if (key->seg_gen < key->cache_pos.cache_seg->gen) {
+			if (key->seg_gen < key->cache_pos.cache_seg->cache_seg_info->gen) {
 				cache_key_put(key);
 			} else {
 				ret = cache_insert_key(cache, key, true);
@@ -1043,7 +1109,7 @@ static int cache_replay(struct cbd_cache *cache)
 			cache_seg_get(key->cache_pos.cache_seg);
 		}
 
-		cache_pos_advance(pos, CBD_KSET_SIZE, false);
+		cache_pos_advance(pos, get_kset_onmedia_size(kset_onmedia), false);
 
 		if (kset_onmedia->flags & CBD_KSET_FLAGS_LAST) {
 			struct cbd_cache_segment *cur_seg, *next_seg;
@@ -1059,7 +1125,7 @@ static int cache_replay(struct cbd_cache *cache)
 		}
 	}
 
-#ifdef CBD_DEBUG
+#ifdef CONFIG_CBD_DEBUG
 	dump_cache(cache);
 #endif
 
@@ -1133,16 +1199,26 @@ static bool no_more_dirty(struct cbd_cache *cache)
 
 	pos = &cache->dirty_tail;
 
-	if (cache_seg_wb_done(pos->cache_seg))
+	if (cache_seg_wb_done(pos->cache_seg)) {
+		cbd_cache_debug(cache, "seg %u wb done\n", pos->cache_seg->cache_seg_id);
 		return !cache_seg_has_next(pos->cache_seg);
+	}
 
 	addr = cache_pos_addr(pos);
 	kset_onmedia = (struct cbd_cache_kset_onmedia *)addr;
-	if (kset_onmedia->magic != CBD_KSET_MAGIC)
+	if (kset_onmedia->magic != CBD_KSET_MAGIC) {
+		cbd_cache_debug(cache, "dirty_tail: %u:%u magic: %llx, not expected: %llx\n",
+				pos->cache_seg->cache_seg_id, pos->seg_off,
+				kset_onmedia->magic, CBD_KSET_MAGIC);
 		return true;
+	}
 
-	if (kset_onmedia->crc != cache_kset_crc(kset_onmedia))
+	if (kset_onmedia->crc != cache_kset_crc(kset_onmedia)) {
+		cbd_cache_debug(cache, "dirty_tail: %u:%u crc: %x, not expected: %x\n",
+				pos->cache_seg->cache_seg_id, pos->seg_off,
+				cache_kset_crc(kset_onmedia), kset_onmedia->crc);
 		return true;
+	}
 
 	return false;
 }
@@ -1151,6 +1227,8 @@ static void cache_writeback_exit(struct cbd_cache *cache)
 {
 	if (!cache->bioset)
 		return;
+
+	cache_flush(cache);
 
 	while (!no_more_dirty(cache))
 		msleep(100);
@@ -1243,6 +1321,28 @@ static void writeback_fn(struct work_struct *work)
 
 		addr = cache_pos_addr(pos);
 		kset_onmedia = (struct cbd_cache_kset_onmedia *)addr;
+#ifdef CONFIG_CBD_CRC
+		/* check the data crc */
+		for (i = 0; i < kset_onmedia->key_num; i++) {
+			struct cbd_cache_key key_tmp = { 0 };
+
+			key = &key_tmp;
+
+			kref_init(&key->ref);
+			key->cache = cache;
+			INIT_LIST_HEAD(&key->list_node);
+
+			key_onmedia = &kset_onmedia->data[i];
+
+			cache_key_decode(key_onmedia, key);
+			if (key->data_crc != cache_key_data_crc(key)) {
+				cbd_cache_debug(cache, "key: %llu:%u data crc(%x) is not expected(%x), wait for data ready.\n",
+						key->off, key->len, cache_key_data_crc(key), key->data_crc);
+				queue_delayed_work(cache->cache_wq, &cache->writeback_work, 1 * HZ);
+				return;
+			}
+		}
+#endif
 		for (i = 0; i < kset_onmedia->key_num; i++) {
 			key_onmedia = &kset_onmedia->data[i];
 
@@ -1264,7 +1364,7 @@ static void writeback_fn(struct work_struct *work)
 
 		vfs_fsync(cache->bdev_file, 1);
 
-		cache_pos_advance(pos, CBD_KSET_SIZE, false);
+		cache_pos_advance(pos, get_kset_onmedia_size(kset_onmedia), false);
 		cache_pos_encode(cache, &cache->cache_info->dirty_tail_pos, &cache->dirty_tail);
 
 		if (kset_onmedia->flags & CBD_KSET_FLAGS_LAST) {
@@ -1348,7 +1448,7 @@ static void gc_fn(struct work_struct *work)
 			cache_key_put(key);
 		}
 
-		cache_pos_advance(pos, CBD_KSET_SIZE, false);
+		cache_pos_advance(pos, get_kset_onmedia_size(kset_onmedia), false);
 		cache_pos_encode(cache, &cache->cache_info->key_tail_pos, &cache->key_tail);
 
 		if (kset_onmedia->flags & CBD_KSET_FLAGS_LAST) {
@@ -1374,50 +1474,6 @@ next_seg:
 			spin_unlock(&cache->seg_map_lock);
 		}
 	}
-}
-
-static int cache_kset_init(struct cbd_cache *cache, u32 kset_id)
-{
-	struct cbd_cache_segment *cache_seg;
-	struct cbd_cache_pos *pos;
-	struct cbd_segment *segment;
-	struct cbd_cache_kset *kset;
-	u32 seg_remain;
-	int ret = 0;
-
-	kset = get_kset(cache, kset_id);
-
-	spin_lock(&cache->key_head_lock);
-again:
-	pos = &cache->key_head;
-	cache_seg = pos->cache_seg;
-	segment = &cache_seg->segment;
-	seg_remain = segment->data_size - pos->seg_off;
-	if (seg_remain < CBD_KSET_SIZE) {
-		struct cbd_cache_segment *next_seg;
-
-		next_seg = get_cache_segment(cache);
-		if (!next_seg) {
-			ret = -EBUSY;
-			goto out;
-		}
-
-		cache->key_head.cache_seg = next_seg;
-		cache->key_head.seg_off = 0;
-
-		cache_seg->cache_seg_info->next_cache_seg_id = next_seg->cache_seg_id;
-		cache_seg->cache_seg_info->flags |= CBD_CACHE_SEG_FLAGS_HAS_NEXT;
-		goto again;
-	}
-
-	kset->kset_onmedia = get_key_head_addr(cache);
-	cache_pos_advance(pos, CBD_KSET_SIZE, false);
-	if (seg_remain < CBD_KSET_SIZE * 2)
-		kset->kset_onmedia->flags |= CBD_KSET_FLAGS_LAST;
-out:
-	spin_unlock(&cache->key_head_lock);
-
-	return ret;
 }
 
 struct cbd_cache *cbd_cache_alloc(struct cbd_transport *cbdt,
@@ -1514,20 +1570,6 @@ struct cbd_cache *cbd_cache_alloc(struct cbd_transport *cbdt,
 
 	cache->state = cbd_cache_state_running;
 
-	/* start writeback */
-	if (opts->start_writeback) {
-		cache->start_writeback = 1;
-		ret = cache_writeback_init(cache);
-		if (ret)
-			goto destroy_cache;
-	}
-
-	/* start gc */
-	if (opts->start_gc) {
-		cache->start_gc = 1;
-		queue_delayed_work(cache->cache_wq, &cache->gc_work, 0);
-	}
-
 	if (opts->init_keys) {
 		cache->init_keys = 1;
 
@@ -1553,7 +1595,7 @@ struct cbd_cache *cbd_cache_alloc(struct cbd_transport *cbdt,
 		}
 
 		cache->n_ksets = opts->n_paral;
-		cache->ksets = kcalloc(cache->n_ksets, sizeof(struct cbd_cache_kset), GFP_KERNEL);
+		cache->ksets = kcalloc(cache->n_ksets, CBD_KSET_SIZE, GFP_KERNEL);
 		if (!cache->ksets) {
 			ret = -ENOMEM;
 			goto destroy_cache;
@@ -1562,7 +1604,7 @@ struct cbd_cache *cbd_cache_alloc(struct cbd_transport *cbdt,
 		for (i = 0; i < cache->n_ksets; i++) {
 			struct cbd_cache_kset *kset;
 
-			kset = &cache->ksets[i];
+			kset = get_kset(cache, i);
 
 			spin_lock_init(&kset->kset_lock);
 		}
@@ -1581,6 +1623,20 @@ struct cbd_cache *cbd_cache_alloc(struct cbd_transport *cbdt,
 			data_head = &cache->data_heads[i];
 			spin_lock_init(&data_head->data_head_lock);
 		}
+	}
+
+	/* start writeback */
+	if (opts->start_writeback) {
+		cache->start_writeback = 1;
+		ret = cache_writeback_init(cache);
+		if (ret)
+			goto destroy_cache;
+	}
+
+	/* start gc */
+	if (opts->start_gc) {
+		cache->start_gc = 1;
+		queue_delayed_work(cache->cache_wq, &cache->gc_work, 0);
 	}
 
 	return cache;
@@ -1604,7 +1660,7 @@ void cbd_cache_destroy(struct cbd_cache *cache)
 		cache_writeback_exit(cache);
 
 	if (cache->init_keys) {
-#ifdef CBD_DEBUG
+#ifdef CONFIG_CBD_DEBUG
 		dump_cache(cache);
 #endif
 		for (i = 0; i < cache->n_trees; i++) {
@@ -1624,7 +1680,6 @@ void cbd_cache_destroy(struct cbd_cache *cache)
 			}
 			spin_unlock(&cache_tree->tree_lock);
 		}
-		cache_flush(cache);
 	}
 
 	if (cache->cache_wq) {
