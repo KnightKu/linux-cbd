@@ -961,8 +961,6 @@ static int cache_write(struct cbd_cache *cache, struct cbd_request *cbd_req)
 
 		ret = cache_data_alloc(cache, key, cbd_req->cbdq->index);
 		if (ret) {
-			cbd_cache_debug(cache, "no cache data available for key %llu:%u\n",
-					key->off, key->len);
 			cache_key_put(key);
 			goto err;
 		}
@@ -1476,6 +1474,8 @@ next_seg:
 	}
 }
 
+#define CBD_CACHE_SEGS_EACH_PARAL	4
+
 struct cbd_cache *cbd_cache_alloc(struct cbd_transport *cbdt,
 				  struct cbd_cache_opts *opts)
 {
@@ -1490,14 +1490,21 @@ struct cbd_cache *cbd_cache_alloc(struct cbd_transport *cbdt,
 
 	/* options sanitize */
 	if (opts->n_paral > CBD_CACHE_PARAL_MAX) {
-		cbd_cache_info(cache, "n_paral too large, change to max %u.\n",
-				CBD_CACHE_PARAL_MAX);
-		opts->n_paral = CBD_CACHE_PARAL_MAX;
+		cbdt_err(cbdt, "n_paral too large (max %u).\n",
+			 CBD_CACHE_PARAL_MAX);
+		return NULL;
 	}
 
 	cache_info = opts->cache_info;
 	backend_info = container_of(cache_info, struct cbd_backend_info, cache_info);
 	backend_id = get_backend_id(cbdt, backend_info);
+
+	if (opts->n_paral * CBD_CACHE_SEGS_EACH_PARAL > cache_info->n_segs) {
+		cbdt_err(cbdt, "n_paral %u requires cache size (%llu), more than current (%llu).",
+				opts->n_paral, opts->n_paral * CBD_CACHE_SEGS_EACH_PARAL * (u64)CBDT_SEG_SIZE,
+				cache_info->n_segs * (u64)CBDT_SEG_SIZE);
+		return NULL;
+	}
 
 	cache = kzalloc(struct_size(cache, segments, cache_info->n_segs), GFP_KERNEL);
 	if (!cache)
