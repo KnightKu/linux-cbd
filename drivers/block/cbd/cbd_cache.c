@@ -10,6 +10,10 @@
 #define CBD_KSET_ONMEDIA_SIZE_MAX	struct_size_t(struct cbd_cache_kset_onmedia, data, CBD_KSET_KEYS_MAX)
 #define CBD_KSET_SIZE			(sizeof(struct cbd_cache_kset) + sizeof(struct cbd_cache_key_onmedia) * CBD_KSET_KEYS_MAX)
 
+#define CBD_CACHE_GC_PERCENT_MIN	0
+#define CBD_CACHE_GC_PERCENT_MAX	90
+#define CBD_CACHE_GC_PERCENT_DEFAULT	70
+
 static inline struct cbd_cache_tree *get_cache_tree(struct cbd_cache *cache, u64 off)
 {
 	return &cache->cache_trees[off >> CBD_CACHE_TREE_SIZE_SHIFT];
@@ -68,15 +72,108 @@ static struct cbd_seg_ops cbd_cache_seg_ops = {
 
 #define CACHE_KEY(node)		(container_of(node, struct cbd_cache_key, rb_node))
 
+static ssize_t cache_segs_show(struct device *dev,
+			       struct device_attribute *attr,
+			       char *buf)
+{
+	struct cbd_backend *backend;
+
+	backend = container_of(dev, struct cbd_backend, cache_dev);
+
+	return sprintf(buf, "%u\n", backend->cbd_cache->n_segs);
+}
+
+static DEVICE_ATTR(cache_segs, 0400, cache_segs_show, NULL);
+
+static ssize_t used_segs_show(struct device *dev,
+			       struct device_attribute *attr,
+			       char *buf)
+{
+	struct cbd_backend *backend;
+	struct cbd_cache *cache;
+
+	backend = container_of(dev, struct cbd_backend, cache_dev);
+	cache = backend->cbd_cache;
+
+	return sprintf(buf, "%u\n", cache->cache_info->used_segs);
+}
+
+static DEVICE_ATTR(used_segs, 0400, used_segs_show, NULL);
+
+static ssize_t gc_percent_show(struct device *dev,
+			       struct device_attribute *attr,
+			       char *buf)
+{
+	struct cbd_backend *backend;
+
+	backend = container_of(dev, struct cbd_backend, cache_dev);
+
+	return sprintf(buf, "%u\n", backend->cbd_cache->cache_info->gc_percent);
+}
+
+static ssize_t gc_percent_store(struct device *dev,
+					struct device_attribute *attr,
+					const char *buf,
+					size_t size)
+{
+	struct cbd_backend *backend;
+	unsigned long val;
+	int ret;
+
+	if (!capable(CAP_SYS_ADMIN))
+		return -EPERM;
+
+	backend = container_of(dev, struct cbd_backend, cache_dev);
+	ret = kstrtoul(buf, 10, &val);
+	if (ret)
+		return ret;
+
+	if (val < CBD_CACHE_GC_PERCENT_MIN ||
+			val > CBD_CACHE_GC_PERCENT_MAX)
+		return -EINVAL;
+
+	backend->cbd_cache->cache_info->gc_percent = val;
+
+	return size;
+}
+
+static DEVICE_ATTR(gc_percent, 0600, gc_percent_show, gc_percent_store);
+
+static struct attribute *cbd_cache_attrs[] = {
+	&dev_attr_cache_segs.attr,
+	&dev_attr_used_segs.attr,
+	&dev_attr_gc_percent.attr,
+	NULL
+};
+
+static struct attribute_group cbd_cache_attr_group = {
+	.attrs = cbd_cache_attrs,
+};
+
+static const struct attribute_group *cbd_cache_attr_groups[] = {
+	&cbd_cache_attr_group,
+	NULL
+};
+
+static void cbd_cache_release(struct device *dev)
+{
+}
+
+const struct device_type cbd_cache_type = {
+	.name		= "cbd_cache",
+	.groups		= cbd_cache_attr_groups,
+	.release	= cbd_cache_release,
+};
+
 #ifdef CONFIG_CBD_DEBUG
 static void dump_seg_map(struct cbd_cache *cache)
 {
 	int i;
 
-	cbd_cache_debug(cache, "------ start seg map dump -------");
+	cbd_cache_debug(cache, "start seg map dump");
 	for (i = 0; i < cache->n_segs; i++)
 		cbd_cache_debug(cache, "seg: %u, %u", i, test_bit(i, cache->seg_map));
-	cbd_cache_debug(cache, "------ end seg map dump -------");
+	cbd_cache_debug(cache, "end seg map dump");
 }
 
 static void dump_cache(struct cbd_cache *cache)
@@ -85,7 +182,7 @@ static void dump_cache(struct cbd_cache *cache)
 	struct rb_node *node;
 	int i;
 
-	cbd_cache_debug(cache, "------ start cache tree dump -------");
+	cbd_cache_debug(cache, "start cache tree dump");
 
 	for (i = 0; i < cache->n_trees; i++) {
 		struct cbd_cache_tree *cache_tree;
@@ -100,7 +197,7 @@ static void dump_cache(struct cbd_cache *cache)
 			node = rb_next(node);
 		}
 	}
-	cbd_cache_debug(cache, "------ end cache tree dump -------");
+	cbd_cache_debug(cache, "end cache tree dump");
 }
 
 #endif /* CONFIG_CBD_DEBUG */
@@ -131,6 +228,7 @@ again:
 	}
 
 	set_bit(seg_id, cache->seg_map);
+	cache->cache_info->used_segs++;
 	cache->last_cache_seg = seg_id;
 	spin_unlock(&cache->seg_map_lock);
 
@@ -160,6 +258,7 @@ static void cache_seg_invalidate(struct cbd_cache_segment *cache_seg)
 
 	spin_lock(&cache->seg_map_lock);
 	clear_bit(cache_seg->cache_seg_id, cache->seg_map);
+	cache->cache_info->used_segs--;
 	spin_unlock(&cache->seg_map_lock);
 
 	queue_work(cache->cache_wq, &cache->clean_work);
@@ -754,7 +853,7 @@ static int cache_read(struct cbd_cache *cache, struct cbd_request *cbd_req)
 	struct cbd_cache_tree *cache_tree;
 	struct cbd_cache_key *key_tmp = NULL, *key_next;
 	struct rb_node *node_tmp;
-	struct rb_node*prev_node = NULL;
+	struct rb_node *prev_node = NULL;
 	struct cbd_cache_key key_data = { .off = cbd_req->off, .len = cbd_req->data_len };
 	struct cbd_cache_key *key = &key_data;
 	struct cbd_cache_pos pos;
@@ -1090,7 +1189,7 @@ static int cache_replay(struct cbd_cache *cache)
 #ifdef CONFIG_CBD_CRC
 			if (key->data_crc != cache_key_data_crc(key)) {
 				cbd_cache_debug(cache, "key: %llu:%u seg %u:%u data_crc error: %x, expected: %x\n",
-						key->off, key->len,key->cache_pos.cache_seg->cache_seg_id,
+						key->off, key->len, key->cache_pos.cache_seg->cache_seg_id,
 						key->cache_pos.seg_off, cache_key_data_crc(key), key->data_crc);
 				ret = -EIO;
 				cache_key_put(key);
@@ -1133,6 +1232,7 @@ static int cache_replay(struct cbd_cache *cache)
 
 	spin_lock(&cache->key_head_lock);
 	cache_pos_copy(&cache->key_head, pos);
+	cache->cache_info->used_segs++;
 	spin_unlock(&cache->key_head_lock);
 
 out:
@@ -1397,8 +1497,7 @@ static bool need_gc(struct cbd_cache *cache)
 	if (dirty_addr == key_addr)
 		return false;
 
-	/* TODO make the shreshold configurable */
-	if (bitmap_weight(cache->seg_map, cache->n_segs) < (cache->n_segs / 10 * 7))
+	if (bitmap_weight(cache->seg_map, cache->n_segs) < (cache->n_segs / 100 * cache->cache_info->gc_percent))
 		return false;
 
 	return true;
@@ -1473,6 +1572,7 @@ next_seg:
 
 			spin_lock(&cache->seg_map_lock);
 			clear_bit(cur_seg->cache_seg_id, cache->seg_map);
+			cache->cache_info->used_segs--;
 			spin_unlock(&cache->seg_map_lock);
 		}
 	}
@@ -1527,7 +1627,7 @@ again:
 
 			if (count >= CBD_CLEAN_KEYS_MAX) {
 				spin_unlock(&cache_tree->tree_lock);
-				msleep(1);
+				usleep_range(1000, 2000);
 				goto again;
 			}
 		}
@@ -1602,6 +1702,7 @@ struct cbd_cache *cbd_cache_alloc(struct cbd_transport *cbdt,
 	cache->n_segs = cache_info->n_segs;
 	spin_lock_init(&cache->seg_map_lock);
 	cache->bdev_file = opts->bdev_file;
+	cache->cache_info->gc_percent = CBD_CACHE_GC_PERCENT_DEFAULT;
 
 	spin_lock_init(&cache->key_head_lock);
 

@@ -651,6 +651,9 @@ struct cbd_cache_info {
 	u32	seg_id;
 	u32	n_segs;
 
+	u32	used_segs;
+	u16	gc_percent;
+
 	struct cbd_cache_pos_onmedia key_tail_pos;
 	struct cbd_cache_pos_onmedia dirty_tail_pos;
 };
@@ -699,8 +702,6 @@ struct cbd_cache_key_onmedia {
 	u32	data_crc;
 #endif
 };
-
-#define CBD_CACHE_KEY_FLAGS_LAST	(1 << 0)
 
 struct cbd_cache_kset_onmedia {
 	u32	crc;
@@ -767,7 +768,7 @@ struct cbd_cache {
 	unsigned long			*seg_map;
 	u32				last_cache_seg;
 	spinlock_t			seg_map_lock;
-	struct cbd_cache_segment	segments[];
+	struct cbd_cache_segment	segments[]; /* should be the last member */
 };
 
 struct cbd_request;
@@ -865,6 +866,8 @@ struct cbd_backend {
 	struct kmem_cache	*backend_io_cache;
 
 	struct cbd_cache	*cbd_cache;
+	struct device		cache_dev;
+	bool			cache_dev_registered;
 };
 
 int cbd_backend_start(struct cbd_transport *cbdt, char *path, u32 backend_id, u32 cache_segs);
