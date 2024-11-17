@@ -131,6 +131,12 @@ static int host_register_validate(struct cbd_transport *cbdt, char *hostname, u3
 	}
 
 host_id_found:
+	if (*host_id >= cbdt->transport_info->host_num) {
+		cbdt_err(cbdt, "host_id: %u is too large, cbdt->host_num: %u\n",
+			       *host_id, cbdt->transport_info->host_num);
+		return -EINVAL;
+	}
+
 	/* check for duplicated hostname */
 	ret = cbd_host_find_id_by_name(cbdt, hostname, &host_id_tmp);
 	if (!ret && (host_id_tmp != *host_id)) {
