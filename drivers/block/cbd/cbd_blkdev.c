@@ -531,9 +531,6 @@ static int blkdev_init(struct cbd_blkdev *cbd_blkdev, struct cbd_backend_info *b
 			goto destroy_queues; /* Clean up queues if cache initialization fails */
 	}
 
-	blkdev_info_write(cbd_blkdev); /* Write block device information */
-	queue_delayed_work(cbd_wq, &cbd_blkdev->hb_work, 0); /* Schedule the heartbeat work */
-
 	return 0;
 destroy_queues:
 	cbd_blkdev_destroy_queues(cbd_blkdev);
@@ -587,6 +584,9 @@ int cbd_blkdev_start(struct cbd_transport *cbdt, u32 backend_id, u32 queues)
 	ret = disk_start(cbd_blkdev);
 	if (ret < 0)
 		goto blkdev_destroy;
+
+	blkdev_info_write(cbd_blkdev); /* Write block device information */
+	queue_delayed_work(cbd_wq, &cbd_blkdev->hb_work, 0); /* Schedule the heartbeat work */
 
 	return 0;
 
