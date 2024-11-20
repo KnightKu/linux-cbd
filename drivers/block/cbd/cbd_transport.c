@@ -70,7 +70,7 @@ del_device:									\
 	for (; i >= 0; i--) {							\
 		cbd_dev = &devs->OBJ##_devs[i];					\
 		dev = &cbd_dev->dev;						\
-		device_del(dev);						\
+		device_unregister(dev);						\
 	}									\
 devs_free:									\
 	kfree(devs);								\
@@ -90,10 +90,10 @@ static void cbd_##OBJ##s_exit(struct cbd_transport *cbdt)			\
 		struct cbd_##OBJ##_device *cbd_dev = &devs->OBJ##_devs[i];	\
 		dev = &cbd_dev->dev;						\
 										\
-		device_del(dev);						\
+		device_unregister(dev);						\
 	}									\
 										\
-	device_del(&devs->OBJ##s_dev);						\
+	device_unregister(&devs->OBJ##s_dev);					\
 										\
 	kfree(devs);								\
 	cbdt->cbd_##OBJ##s_dev = NULL;						\
