@@ -114,11 +114,6 @@ err:
  * to prevent data corruption. If the data is already clean (i.e., no modifications),
  * the function returns without performing any writeback.
  *
- * Unlike traditional approaches where each key write is followed by a data flush,
- * here we defer flushing. Instead, once an entire kset (a set of keys) completes
- * its writeback, we perform a `sync` operation to ensure data consistency and
- * durability on disk.
- *
  * Return: 0 on success, or -EIO on write failure.
  */
 static int cache_key_writeback(struct cbd_cache *cache, struct cbd_cache_key *key)
