@@ -409,13 +409,13 @@ static int backend_cache_init(struct cbd_backend *cbdb, u32 cache_segs, bool new
 	cbdb->cbd_cache = cbd_cache_alloc(cbdb->cbdt, &cache_opts);
 	if (!cbdb->cbd_cache) {
 		ret = -ENOMEM;
-		goto err; /* Cleanup and return error. */
+		goto err;
 	}
 
-	return 0; /* Success. */
+	return 0;
 
 err:
-	return ret; /* Return error code. */
+	return ret;
 }
 
 /**
@@ -428,7 +428,7 @@ err:
 static void backend_cache_destroy(struct cbd_backend *cbdb)
 {
 	if (cbdb->cbd_cache)
-		cbd_cache_destroy(cbdb->cbd_cache); /* Destroy the cache. */
+		cbd_cache_destroy(cbdb->cbd_cache);
 }
 
 /**

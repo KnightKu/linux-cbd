@@ -204,15 +204,15 @@ static int cbd_blkdev_create_queues(struct cbd_blkdev *cbd_blkdev, u32 *channels
 		/* Start the queue with the specified channel */
 		ret = cbd_queue_start(cbdq, channels[i]);
 		if (ret)
-			goto err;  /* If starting the queue fails, clean up */
+			goto err;
 	}
 
-	return 0;  /* Success */
+	return 0;
 
 err:
 	/* Clean up by destroying the queues if initialization fails */
 	cbd_blkdev_destroy_queues(cbd_blkdev);
-	return ret;  /* Return the error code */
+	return ret;
 }
 
 /**
@@ -349,7 +349,7 @@ static int blkdev_start_validate(struct cbd_transport *cbdt, struct cbd_backend_
 			     u32 backend_id, u32 *queues)
 {
 	struct cbd_blkdev_info *blkdev_info;
-	u32 backend_blkdevs = 0; /* count how many blkdevs connected to backend of backend_id */
+	u32 backend_blkdevs = 0;
 	u32 i;
 
 	if (!backend_info || !cbd_backend_info_is_alive(backend_info)) {
@@ -402,41 +402,41 @@ static struct cbd_blkdev *blkdev_alloc(struct cbd_transport *cbdt)
 
 	cbd_blkdev = kzalloc(sizeof(struct cbd_blkdev), GFP_KERNEL);
 	if (!cbd_blkdev)
-		return NULL; /* Memory allocation failed */
+		return NULL;
 
-	cbd_blkdev->cbdt = cbdt; /* Set the transport pointer */
-	mutex_init(&cbd_blkdev->lock); /* Initialize the lock for the block device */
-	mutex_init(&cbd_blkdev->info_lock); /* Initialize the info lock */
-	INIT_LIST_HEAD(&cbd_blkdev->node); /* Initialize the list head for linking */
-	INIT_DELAYED_WORK(&cbd_blkdev->hb_work, blkdev_hb_workfn); /* Initialize heartbeat work */
+	cbd_blkdev->cbdt = cbdt;
+	mutex_init(&cbd_blkdev->lock);
+	mutex_init(&cbd_blkdev->info_lock);
+	INIT_LIST_HEAD(&cbd_blkdev->node);
+	INIT_DELAYED_WORK(&cbd_blkdev->hb_work, blkdev_hb_workfn);
 
 	ret = cbdt_get_empty_blkdev_id(cbdt, &cbd_blkdev->blkdev_id);
 	if (ret < 0)
-		goto blkdev_free; /* Failed to get an empty block device ID */
+		goto blkdev_free;
 
 	cbd_blkdev->mapped_id = ida_simple_get(&cbd_mapped_id_ida, 0,
 					 minor_to_cbd_mapped_id(1 << MINORBITS),
 					 GFP_KERNEL);
 	if (cbd_blkdev->mapped_id < 0) {
-		ret = -ENOENT; /* Failed to get a mapped ID */
+		ret = -ENOENT;
 		goto blkdev_free;
 	}
 
 	cbd_blkdev->task_wq = alloc_workqueue("cbdt%d-d%u",  WQ_UNBOUND | WQ_MEM_RECLAIM,
 					0, cbdt->id, cbd_blkdev->mapped_id);
 	if (!cbd_blkdev->task_wq) {
-		ret = -ENOMEM; /* Workqueue allocation failed */
-		goto ida_remove; /* Clean up the allocated mapped ID */
+		ret = -ENOMEM;
+		goto ida_remove;
 	}
 
-	return cbd_blkdev; /* Successfully allocated and initialized */
+	return cbd_blkdev;
 
 ida_remove:
-	ida_simple_remove(&cbd_mapped_id_ida, cbd_blkdev->mapped_id); /* Remove the mapped ID */
+	ida_simple_remove(&cbd_mapped_id_ida, cbd_blkdev->mapped_id);
 blkdev_free:
-	kfree(cbd_blkdev); /* Free the allocated block device structure */
+	kfree(cbd_blkdev);
 
-	return NULL; /* Return NULL on failure */
+	return NULL;
 }
 
 static void blkdev_free(struct cbd_blkdev *cbd_blkdev)
@@ -465,7 +465,7 @@ static int blkdev_cache_init(struct cbd_blkdev *cbd_blkdev)
 	cache_opts.cache_info = &cbd_blkdev->cache_info;
 	cache_opts.cache_id = cbd_blkdev->backend_id;
 	cache_opts.owner = NULL;
-	cache_opts.new_cache = false;  /* Cache already allocated during backend startup */
+	cache_opts.new_cache = false;
 	cache_opts.start_writeback = false;
 	cache_opts.start_gc = true;
 	cache_opts.init_keys = true;
@@ -505,9 +505,9 @@ static int blkdev_init(struct cbd_blkdev *cbd_blkdev, struct cbd_backend_info *b
 	struct cbd_transport *cbdt = cbd_blkdev->cbdt;
 	int ret;
 
-	cbd_blkdev->backend_id = backend_id; /* Set the backend ID */
-	cbd_blkdev->num_queues = queues; /* Set the number of queues */
-	cbd_blkdev->dev_size = backend_info->dev_size; /* Set the device size */
+	cbd_blkdev->backend_id = backend_id;
+	cbd_blkdev->num_queues = queues;
+	cbd_blkdev->dev_size = backend_info->dev_size;
 	cbd_blkdev->blkdev_dev = &cbdt->cbd_blkdevs_dev->blkdev_devs[cbd_blkdev->blkdev_id];
 
 	/* Get the backend if it is hosted on the same machine */
@@ -517,18 +517,18 @@ static int blkdev_init(struct cbd_blkdev *cbd_blkdev, struct cbd_backend_info *b
 	/* Initialize block device information */
 	cbd_blkdev->blkdev_info.backend_id = backend_id;
 	cbd_blkdev->blkdev_info.host_id = cbdt->host->host_id;
-	cbd_blkdev->blkdev_info.state = cbd_blkdev_state_running; /* Set the state to running */
+	cbd_blkdev->blkdev_info.state = cbd_blkdev_state_running;
 
 	/* Create queues for the block device */
 	ret = cbd_blkdev_create_queues(cbd_blkdev, backend_info->handler_channels);
 	if (ret < 0)
-		goto err; /* Jump to error handling if queue creation fails */
+		goto err;
 
 	/* Initialize cache if the backend has caching enabled */
 	if (cbd_backend_cache_on(backend_info)) {
 		ret = blkdev_cache_init(cbd_blkdev);
 		if (ret)
-			goto destroy_queues; /* Clean up queues if cache initialization fails */
+			goto destroy_queues;
 	}
 
 	return 0;
@@ -585,8 +585,8 @@ int cbd_blkdev_start(struct cbd_transport *cbdt, u32 backend_id, u32 queues)
 	if (ret < 0)
 		goto blkdev_destroy;
 
-	blkdev_info_write(cbd_blkdev); /* Write block device information */
-	queue_delayed_work(cbd_wq, &cbd_blkdev->hb_work, 0); /* Schedule the heartbeat work */
+	blkdev_info_write(cbd_blkdev);
+	queue_delayed_work(cbd_wq, &cbd_blkdev->hb_work, 0);
 
 	return 0;
 

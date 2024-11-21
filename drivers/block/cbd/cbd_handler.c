@@ -133,10 +133,10 @@ static int handle_backend_cmd(struct cbd_handler *handler, struct cbd_se *se)
 		backend_io = backend_prepare_io(handler, se, REQ_OP_WRITE);
 		break;
 	case CBD_OP_FLUSH:
-		ret = blkdev_issue_flush(cbdb->bdev); /* Issue flush for data consistency */
+		ret = blkdev_issue_flush(cbdb->bdev);
 		goto complete_cmd;
 	default:
-		cbd_handler_err(handler, "unrecognized op: 0x%x", se->op); /* Log error for unknown operation */
+		cbd_handler_err(handler, "unrecognized op: 0x%x", se->op);
 		ret = -EIO;
 		goto complete_cmd;
 	}
@@ -346,8 +346,8 @@ again:
 		/* Process the management command */
 		ret = handle_mgmt_cmd(handler);
 		if (ret)
-			goto out; /* If an error occurs, exit the loop */
-		goto again; /* Check for more mgmt_cmds */
+			goto out;
+		goto again;
 	}
 
 out:

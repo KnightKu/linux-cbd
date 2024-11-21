@@ -66,7 +66,7 @@ void cbd_req_put(struct cbd_request *cbd_req, int ret)
 
 	/* Decrease the reference count and finalize the request if it reaches zero */
 	if (kref_put(&cbd_req->ref, end_req) && parent)
-		cbd_req_put(parent, ret); /* Propagate the return status to the parent */
+		cbd_req_put(parent, ret);
 }
 
 /**
@@ -120,8 +120,8 @@ static bool __advance_data_tail(struct cbd_queue *cbdq, u32 data_off, u32 data_l
 {
 	if (data_off == cbdq->channel.data_tail) {
 		cbdq->released_extents[data_off / PAGE_SIZE] = 0;
-		cbdq->channel.data_tail += data_len; /* Advance data tail */
-		cbdq->channel.data_tail %= cbdq->channel.data_size; /* Wrap around if needed */
+		cbdq->channel.data_tail += data_len;
+		cbdq->channel.data_tail %= cbdq->channel.data_size;
 		return true;
 	}
 
@@ -144,11 +144,11 @@ static bool __advance_data_tail(struct cbd_queue *cbdq, u32 data_off, u32 data_l
  */
 static void advance_data_tail(struct cbd_queue *cbdq, u32 data_off, u32 data_len)
 {
-	data_off %= cbdq->channel.data_size; /* Normalize data offset */
-	cbdq->released_extents[data_off / PAGE_SIZE] = data_len; /* Mark extent as released */
+	data_off %= cbdq->channel.data_size;
+	cbdq->released_extents[data_off / PAGE_SIZE] = data_len;
 
 	while (__advance_data_tail(cbdq, data_off, data_len)) {
-		data_off += data_len; /* move to next extent */
+		data_off += data_len;
 		data_off %= cbdq->channel.data_size;
 		data_len = cbdq->released_extents[data_off / PAGE_SIZE];
 		/*
