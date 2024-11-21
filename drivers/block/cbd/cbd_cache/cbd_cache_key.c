@@ -11,10 +11,10 @@
  */
 void cache_key_init(struct cbd_cache *cache, struct cbd_cache_key *key)
 {
-	kref_init(&key->ref);                   /* Initialize reference count */
-	key->cache = cache;                     /* Set the associated cache */
-	INIT_LIST_HEAD(&key->list_node);        /* Initialize the list head */
-	RB_CLEAR_NODE(&key->rb_node);           /* Clear the red-black tree node */
+	kref_init(&key->ref);
+	key->cache = cache;
+	INIT_LIST_HEAD(&key->list_node);
+	RB_CLEAR_NODE(&key->rb_node);
 }
 
 /**
@@ -32,11 +32,11 @@ struct cbd_cache_key *cache_key_alloc(struct cbd_cache *cache)
 	/* Allocate a cache key from the slab cache, zeroed on allocation */
 	key = kmem_cache_zalloc(cache->key_cache, GFP_NOWAIT);
 	if (!key)
-		return NULL;  /* Return NULL if allocation fails */
+		return NULL;
 
-	cache_key_init(cache, key);  /* Initialize the allocated key */
+	cache_key_init(cache, key);
 
-	return key;  /* Return the allocated and initialized key */
+	return key;
 }
 
 /**
@@ -48,7 +48,7 @@ struct cbd_cache_key *cache_key_alloc(struct cbd_cache *cache)
  */
 void cache_key_get(struct cbd_cache_key *key)
 {
-	kref_get(&key->ref);  /* Increment the reference count */
+	kref_get(&key->ref);
 }
 
 /**
@@ -63,7 +63,7 @@ static void cache_key_destroy(struct kref *ref)
 	struct cbd_cache_key *key = container_of(ref, struct cbd_cache_key, ref);
 	struct cbd_cache *cache = key->cache;
 
-	kmem_cache_free(cache->key_cache, key);  /* Free the cache key */
+	kmem_cache_free(cache->key_cache, key);
 }
 
 /**
@@ -75,7 +75,7 @@ static void cache_key_destroy(struct kref *ref)
  */
 void cache_key_put(struct cbd_cache_key *key)
 {
-	kref_put(&key->ref, cache_key_destroy);  /* Decrement ref count and free if zero */
+	kref_put(&key->ref, cache_key_destroy);
 }
 
 /**
@@ -92,7 +92,7 @@ void cache_pos_advance(struct cbd_cache_pos *pos, u32 len)
 	/* Ensure enough space remains in the current segment */
 	BUG_ON(cache_seg_remain(pos) < len);
 
-	pos->seg_off += len;  /* Advance the segment offset by the specified length */
+	pos->seg_off += len;
 }
 
 /**
@@ -106,17 +106,17 @@ void cache_pos_advance(struct cbd_cache_pos *pos, u32 len)
 static void cache_key_encode(struct cbd_cache_key_onmedia *key_onmedia,
 			     struct cbd_cache_key *key)
 {
-	key_onmedia->off = key->off;  /* Set the offset */
-	key_onmedia->len = key->len;  /* Set the length */
+	key_onmedia->off = key->off;
+	key_onmedia->len = key->len;
 
-	key_onmedia->cache_seg_id = key->cache_pos.cache_seg->cache_seg_id;  /* Set segment ID */
-	key_onmedia->cache_seg_off = key->cache_pos.seg_off;  /* Set segment offset */
+	key_onmedia->cache_seg_id = key->cache_pos.cache_seg->cache_seg_id;
+	key_onmedia->cache_seg_off = key->cache_pos.seg_off;
 
-	key_onmedia->seg_gen = key->seg_gen;  /* Set segment generation */
-	key_onmedia->flags = key->flags;  /* Set flags */
+	key_onmedia->seg_gen = key->seg_gen;
+	key_onmedia->flags = key->flags;
 
 #ifdef CONFIG_CBD_CACHE_DATA_CRC
-	key_onmedia->data_crc = key->data_crc;  /* Set data CRC if configured */
+	key_onmedia->data_crc = key->data_crc;
 #endif
 }
 
@@ -132,17 +132,17 @@ void cache_key_decode(struct cbd_cache_key_onmedia *key_onmedia, struct cbd_cach
 {
 	struct cbd_cache *cache = key->cache;
 
-	key->off = key_onmedia->off;  /* Set the offset */
-	key->len = key_onmedia->len;  /* Set the length */
+	key->off = key_onmedia->off;
+	key->len = key_onmedia->len;
 
-	key->cache_pos.cache_seg = &cache->segments[key_onmedia->cache_seg_id];  /* Set segment pointer */
-	key->cache_pos.seg_off = key_onmedia->cache_seg_off;  /* Set segment offset */
+	key->cache_pos.cache_seg = &cache->segments[key_onmedia->cache_seg_id];
+	key->cache_pos.seg_off = key_onmedia->cache_seg_off;
 
-	key->seg_gen = key_onmedia->seg_gen;  /* Set segment generation */
-	key->flags = key_onmedia->flags;  /* Set flags */
+	key->seg_gen = key_onmedia->seg_gen;
+	key->flags = key_onmedia->flags;
 
 #ifdef CONFIG_CBD_CACHE_DATA_CRC
-	key->data_crc = key_onmedia->data_crc;  /* Set data CRC if configured */
+	key->data_crc = key_onmedia->data_crc;
 #endif
 }
 
@@ -159,11 +159,11 @@ static void append_last_kset(struct cbd_cache *cache, u32 next_seg)
 	struct cbd_cache_kset_onmedia *kset_onmedia;
 
 	kset_onmedia = get_key_head_addr(cache);
-	kset_onmedia->flags |= CBD_KSET_FLAGS_LAST;  /* Mark as the last kset */
-	kset_onmedia->next_cache_seg_id = next_seg;  /* Set the next segment ID */
-	kset_onmedia->magic = CBD_KSET_MAGIC;  /* Set magic number */
-	kset_onmedia->crc = cache_kset_crc(kset_onmedia);  /* Compute and set CRC */
-	cache_pos_advance(&cache->key_head, sizeof(struct cbd_cache_kset_onmedia));  /* Advance key head position */
+	kset_onmedia->flags |= CBD_KSET_FLAGS_LAST;
+	kset_onmedia->next_cache_seg_id = next_seg;
+	kset_onmedia->magic = CBD_KSET_MAGIC;
+	kset_onmedia->crc = cache_kset_crc(kset_onmedia);
+	cache_pos_advance(&cache->key_head, sizeof(struct cbd_cache_kset_onmedia));
 }
 
 /**
@@ -231,34 +231,34 @@ int cache_kset_close(struct cbd_cache *cache, struct cbd_cache_kset *kset)
 	u32 kset_onmedia_size;
 	int ret;
 
-	kset_onmedia = &kset->kset_onmedia;  /* Get the on-media kset structure */
+	kset_onmedia = &kset->kset_onmedia;
 
-	if (!kset_onmedia->key_num)  /* No keys to close */
+	if (!kset_onmedia->key_num)
 		return 0;
 
-	kset_onmedia_size = struct_size(kset_onmedia, data, kset_onmedia->key_num);  /* Calculate size */
+	kset_onmedia_size = struct_size(kset_onmedia, data, kset_onmedia->key_num);
 
-	spin_lock(&cache->key_head_lock);  /* Lock for safe access */
+	spin_lock(&cache->key_head_lock);
 again:
 	/* Reserve space for the last kset */
 	if (cache_seg_remain(&cache->key_head) < kset_onmedia_size + sizeof(struct cbd_cache_kset_onmedia)) {
 		struct cbd_cache_segment *next_seg;
 
-		next_seg = get_cache_segment(cache);  /* Obtain a new cache segment */
+		next_seg = get_cache_segment(cache);
 		if (!next_seg) {
-			ret = -EBUSY;  /* No segment available */
-			goto out;  /* Exit the function */
+			ret = -EBUSY;
+			goto out;
 		}
 
-		append_last_kset(cache, next_seg->cache_seg_id);  /* Append the last kset */
+		append_last_kset(cache, next_seg->cache_seg_id);
 
-		cache->key_head.cache_seg = next_seg;  /* Update the key head to the new segment */
-		cache->key_head.seg_off = 0;  /* Reset segment offset */
-		goto again;  /* Retry to reserve space */
+		cache->key_head.cache_seg = next_seg;
+		cache->key_head.seg_off = 0;
+		goto again;
 	}
 
-	kset_onmedia->magic = CBD_KSET_MAGIC;  /* Set magic number */
-	kset_onmedia->crc = cache_kset_crc(kset_onmedia);  /* Compute CRC */
+	kset_onmedia->magic = CBD_KSET_MAGIC;
+	kset_onmedia->crc = cache_kset_crc(kset_onmedia);
 
 	/*
 	 * Before writing kset_onmedia to the key head address,
@@ -270,16 +270,16 @@ again:
 	kset_data_flush(cache, kset_onmedia);
 
 	memcpy(get_key_head_addr(cache), kset_onmedia, kset_onmedia_size);
-	cbdt_flush(cache->cbdt, get_key_head_addr(cache), kset_onmedia_size);  /* Flush the kset to storage */
+	cbdt_flush(cache->cbdt, get_key_head_addr(cache), kset_onmedia_size);
 
 	memset(kset_onmedia, 0, sizeof(struct cbd_cache_kset_onmedia));
-	cache_pos_advance(&cache->key_head, kset_onmedia_size);  /* Advance the key head position */
+	cache_pos_advance(&cache->key_head, kset_onmedia_size);
 
-	ret = 0;  /* Success */
+	ret = 0;
 out:
-	spin_unlock(&cache->key_head_lock);  /* Unlock after operation */
+	spin_unlock(&cache->key_head_lock);
 
-	return ret;  /* Return result */
+	return ret;
 }
 
 /**
@@ -437,7 +437,7 @@ int cache_tree_walk(struct cbd_cache *cache, struct cbd_cache_tree_walk_ctx *ctx
 				goto out;
 		}
 next:
-		node_tmp = rb_next(node_tmp);  /* Move to the next node in the red-black tree */
+		node_tmp = rb_next(node_tmp);
 	}
 
 	if (ctx->walk_finally) {
@@ -446,9 +446,9 @@ next:
 			goto out;
 	}
 
-	return 0;  /* Return success */
+	return 0;
 out:
-	return ret;  /* Return error code */
+	return ret;
 }
 
 /**
@@ -470,27 +470,27 @@ struct rb_node *cache_tree_search(struct cbd_cache_tree *cache_tree, struct cbd_
 				  struct rb_node **parentp, struct rb_node ***newp,
 				  struct list_head *delete_key_list)
 {
-	struct rb_node **new, *parent = NULL;  /* Pointers for tree traversal */
-	struct cbd_cache_key *key_tmp;  /* Temporary pointer to the current key */
-	struct rb_node *prev_node = NULL;  /* Pointer to the previous node */
+	struct rb_node **new, *parent = NULL;
+	struct cbd_cache_key *key_tmp;
+	struct rb_node *prev_node = NULL;
 
-	new = &(cache_tree->root.rb_node);  /* Start at the root of the tree */
+	new = &(cache_tree->root.rb_node);
 	while (*new) {
-		key_tmp = container_of(*new, struct cbd_cache_key, rb_node);  /* Get the key from the node */
+		key_tmp = container_of(*new, struct cbd_cache_key, rb_node);
 		if (cache_key_invalid(key_tmp))
-			list_add(&key_tmp->list_node, delete_key_list);  /* Add invalid key to the delete list */
+			list_add(&key_tmp->list_node, delete_key_list);
 
-		parent = *new;  /* Update the parent pointer */
+		parent = *new;
 		if (key_tmp->off >= key->off) {
-			new = &((*new)->rb_left);  /* Traverse left if current key is greater than or equal to search key */
+			new = &((*new)->rb_left);
 		} else {
-			prev_node = *new;  /* Update the previous node */
-			new = &((*new)->rb_right);  /* Traverse right otherwise */
+			prev_node = *new;
+			new = &((*new)->rb_right);
 		}
 	}
 
 	if (!prev_node)
-		prev_node = rb_first(&cache_tree->root);  /* Get the first node if no previous node was found */
+		prev_node = rb_first(&cache_tree->root);
 
 	if (parentp)
 		*parentp = parent;
@@ -524,8 +524,8 @@ static int fixup_overlap_tail(struct cbd_cache_key *key,
 	 */
 	cache_key_cutfront(key_tmp, cache_key_lend(key) - cache_key_lstart(key_tmp));
 	if (key_tmp->len == 0) {
-		cache_key_delete(key_tmp);  /* Delete the key if it becomes empty */
-		ret = -EAGAIN;  /* Indicate that a reinsert is needed */
+		cache_key_delete(key_tmp);
+		ret = -EAGAIN;
 
 		/*
 		 * Deleting key_tmp may change the structure of the
@@ -535,9 +535,9 @@ static int fixup_overlap_tail(struct cbd_cache_key *key,
 		goto out;
 	}
 
-	return 0;  /* Return success */
+	return 0;
 out:
-	return ret;  /* Return error code */
+	return ret;
 }
 
 /**
@@ -559,9 +559,9 @@ static int fixup_overlap_contain(struct cbd_cache_key *key,
 	 *    |----|			key_tmp
 	 * |==========|			key
 	 */
-	cache_key_delete(key_tmp);  /* Delete the contained key */
+	cache_key_delete(key_tmp);
 
-	return -EAGAIN;  /* Indicate that a re-insert is needed */
+	return -EAGAIN;
 }
 
 /**
@@ -595,7 +595,7 @@ static int fixup_overlap_contained(struct cbd_cache_key *key,
 		cache_key_cutback(key_tmp, cache_key_lend(key_tmp) - cache_key_lstart(key));
 		if (key_tmp->len == 0) {
 			cache_key_delete(key_tmp);
-			ret = -EAGAIN;  /* Need to research the tree after deletion */
+			ret = -EAGAIN;
 			goto out;
 		}
 	} else {
@@ -609,29 +609,29 @@ static int fixup_overlap_contained(struct cbd_cache_key *key,
 			goto out;
 		}
 
-		cache_key_copy(key_fixup, key_tmp);  /* Copy key_tmp to key_fixup for modifications */
+		cache_key_copy(key_fixup, key_tmp);
 
 		/* Split key_tmp based on the new key's range */
 		cache_key_cutback(key_tmp, cache_key_lend(key_tmp) - cache_key_lstart(key));
 		if (key_tmp->len == 0) {
 			cache_key_delete(key_tmp);
-			need_research = true;  /* Key deleted, need to research tree */
+			need_research = true;
 		}
 
 		/* Create a new portion for key_fixup */
 		cache_key_cutfront(key_fixup, cache_key_lend(key) - cache_key_lstart(key_tmp));
 		if (key_fixup->len == 0) {
-			cache_key_put(key_fixup);  /* If the new portion is empty, release it */
+			cache_key_put(key_fixup);
 		} else {
 			/* Insert the new key into the cache */
 			ret = cache_key_insert(cache, key_fixup, false);
 			if (ret)
 				goto out;
-			need_research = true;  /* Key inserted, may need to research */
+			need_research = true;
 		}
 
 		if (need_research) {
-			ret = -EAGAIN;  /* Need to research the tree */
+			ret = -EAGAIN;
 			goto out;
 		}
 	}
@@ -665,10 +665,10 @@ static int fixup_overlap_head(struct cbd_cache_key *key,
 	if (key_tmp->len == 0) {
 		/* If the adjusted key_tmp length is zero, delete it */
 		cache_key_delete(key_tmp);
-		return -EAGAIN;  /* Indicates that tree research is needed */
+		return -EAGAIN;
 	}
 
-	return 0;  /* Successful adjustment */
+	return 0;
 }
 
 /**
@@ -685,7 +685,7 @@ static int fixup_overlap_head(struct cbd_cache_key *key,
 static int cache_insert_fixup(struct cbd_cache *cache,
 	struct cbd_cache_key *key, struct rb_node *prev_node)
 {
-	struct cbd_cache_tree_walk_ctx walk_ctx = { 0 };  /* Initialize the walk context */
+	struct cbd_cache_tree_walk_ctx walk_ctx = { 0 };
 
 	/* Set up the context with the cache, start node, and new key */
 	walk_ctx.cache = cache;
@@ -717,45 +717,45 @@ static int cache_insert_fixup(struct cbd_cache *cache,
 int cache_key_insert(struct cbd_cache *cache, struct cbd_cache_key *key,
 	bool new_key)
 {
-	struct rb_node **new, *parent = NULL;  /* Pointers for the new node and parent */
-	struct cbd_cache_tree *cache_tree;  /* Pointer to the cache tree */
-	struct cbd_cache_key *key_tmp = NULL, *key_next;  /* Temporary keys for deletion */
-	struct rb_node *prev_node = NULL;  /* Previous node during search */
-	LIST_HEAD(delete_key_list);  /* List for keys marked for deletion */
-	int ret;  /* Return value */
+	struct rb_node **new, *parent = NULL;
+	struct cbd_cache_tree *cache_tree;
+	struct cbd_cache_key *key_tmp = NULL, *key_next;
+	struct rb_node *prev_node = NULL;
+	LIST_HEAD(delete_key_list);
+	int ret;
 
-	cache_tree = get_cache_tree(cache, key->off);  /* Get the cache tree based on key offset */
+	cache_tree = get_cache_tree(cache, key->off);
 
 	if (new_key)
-		key->cache_tree = cache_tree;  /* Associate the key with the cache tree */
+		key->cache_tree = cache_tree;
 
 search:
-	prev_node = cache_tree_search(cache_tree, key, &parent, &new, &delete_key_list);  /* Search for the position to insert */
+	prev_node = cache_tree_search(cache_tree, key, &parent, &new, &delete_key_list);
 
 	if (!list_empty(&delete_key_list)) {
 		/* Remove invalid keys from the delete list */
 		list_for_each_entry_safe(key_tmp, key_next, &delete_key_list, list_node) {
 			list_del_init(&key_tmp->list_node);
-			cache_key_delete(key_tmp);  /* Delete the invalid key */
+			cache_key_delete(key_tmp);
 		}
-		goto search;  /* Restart search after deletions */
+		goto search;
 	}
 
 	if (new_key) {
-		ret = cache_insert_fixup(cache, key, prev_node);  /* Handle potential overlaps */
+		ret = cache_insert_fixup(cache, key, prev_node);
 		if (ret == -EAGAIN)
-			goto search;  /* Retry if cache tree was changed in fixup */
+			goto search;
 		if (ret)
-			goto out;  /* Handle other errors */
+			goto out;
 	}
 
 	/* Link and insert the new key into the red-black tree */
 	rb_link_node(&key->rb_node, parent, new);
 	rb_insert_color(&key->rb_node, &cache_tree->root);
 
-	return 0;  /* Success */
+	return 0;
 out:
-	return ret;  /* Return error code */
+	return ret;
 }
 
 /**
@@ -770,38 +770,38 @@ out:
 void clean_fn(struct work_struct *work)
 {
 	struct cbd_cache *cache = container_of(work, struct cbd_cache, clean_work);
-	struct cbd_cache_tree *cache_tree;  /* Pointer to the cache tree */
-	struct rb_node *node;  /* Current node in the red-black tree */
-	struct cbd_cache_key *key;  /* Pointer to the cache key */
-	int i, count;  /* Loop index and count of deleted keys */
+	struct cbd_cache_tree *cache_tree;
+	struct rb_node *node;
+	struct cbd_cache_key *key;
+	int i, count;
 
 	for (i = 0; i < cache->n_trees; i++) {
-		cache_tree = &cache->cache_trees[i];  /* Access the current cache tree */
+		cache_tree = &cache->cache_trees[i];
 
 again:
 		if (cache->state == cbd_cache_state_stopping)
-			return;  /* Exit if cache is stopping */
+			return;
 
 		/* Delete up to CBD_CLEAN_KEYS_MAX keys in one iteration */
-		count = 0;  /* Initialize deletion count */
-		spin_lock(&cache_tree->tree_lock);  /* Acquire lock for thread safety */
-		node = rb_first(&cache_tree->root);  /* Get the first node in the tree */
+		count = 0;
+		spin_lock(&cache_tree->tree_lock);
+		node = rb_first(&cache_tree->root);
 		while (node) {
-			key = CACHE_KEY(node);  /* Get the cache key from the node */
-			node = rb_next(node);  /* Move to the next node */
+			key = CACHE_KEY(node);
+			node = rb_next(node);
 			if (cache_key_invalid(key)) {
-				count++;  /* Increment count for each invalid key */
-				cache_key_delete(key);  /* Delete the invalid key */
+				count++;
+				cache_key_delete(key);
 			}
 
 			if (count >= CBD_CLEAN_KEYS_MAX) {
 				/* Unlock and pause before continuing cleanup */
 				spin_unlock(&cache_tree->tree_lock);
-				usleep_range(1000, 2000);  /* Sleep for a short duration */
-				goto again;  /* Restart cleanup process */
+				usleep_range(1000, 2000);
+				goto again;
 			}
 		}
-		spin_unlock(&cache_tree->tree_lock);  /* Release the lock */
+		spin_unlock(&cache_tree->tree_lock);
 	}
 }
 
