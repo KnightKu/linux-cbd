@@ -65,7 +65,7 @@ static inline u32 cbd_ce_crc(struct cbd_ce *ce)
 /* cbd channel segment metadata */
 #define CBDC_META_SIZE          (4 * 1024 * 1024)                   /* Metadata size for each CBD channel segment (4 MB) */
 #define CBDC_SUBMR_RESERVED     sizeof(struct cbd_se)               /* Reserved space for SUBMR (submission metadata region) */
-#define CBDC_COMPR_RESERVED      sizeof(struct cbd_ce)               /* Reserved space for COMPR (completion metadata region) */
+#define CBDC_COMPR_RESERVED     sizeof(struct cbd_ce)               /* Reserved space for COMPR (completion metadata region) */
 
 #define CBDC_DATA_ALIGN         4096                                /* Data alignment boundary (4 KB) */
 #define CBDC_DATA_RESERVED      CBDC_DATA_ALIGN                     /* Reserved space aligned to data boundary */
@@ -104,11 +104,11 @@ struct cbd_channel_seg_info {
  * corresponding mgmt_cmd->cmd_seq.
  */
 struct cbdc_mgmt_cmd {
-	struct cbd_meta_header header;  /**< Metadata header */
-	u8 cmd_seq;                     /**< Command sequence number */
-	u8 cmd_op;                      /**< Command operation type */
-	u16 res;                        /**< Reserved field */
-	u32 res1;                       /**< Additional reserved field */
+	struct cbd_meta_header header;
+	u8 cmd_seq;
+	u8 cmd_op;
+	u16 res;
+	u32 res1;
 };
 
 enum cbdc_mgmt_cmd_op {
@@ -130,11 +130,11 @@ enum cbdc_mgmt_cmd_op {
  * mgmt_cmd->cmd_seq.
  */
 struct cbdc_mgmt_ret {
-	struct cbd_meta_header header;  /**< Metadata header */
-	u8 cmd_seq;                     /**< Command sequence number */
-	u8 cmd_ret;                     /**< Command return value */
-	u16 res;                        /**< Reserved field */
-	u32 res1;                       /**< Additional reserved field */
+	struct cbd_meta_header header;
+	u8 cmd_seq;
+	u8 cmd_ret;
+	u16 res;
+	u32 res1;
 };
 
 enum cbdc_mgmt_cmd_ret {

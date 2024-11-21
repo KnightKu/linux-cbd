@@ -17,12 +17,12 @@
 		 segment->seg_id, ##__VA_ARGS__)
 
 
-CBD_DEVICE(segment); /* Macro to define CBD device named "segment" */
+CBD_DEVICE(segment);
 
 /* Enumeration for CBD segment states */
 enum cbd_segment_state {
 	cbd_segment_state_none		= 0,	/* Segment is in a none (uninitialized) state */
-	cbd_segment_state_running,		/* Segment is active and running */
+	cbd_segment_state_running,
 };
 
 /* Enumeration for segment types */
@@ -51,10 +51,10 @@ static inline const char *cbds_type_str(enum cbd_seg_type type)
 /* Structure for CBD segment information */
 struct cbd_segment_info {
 	struct cbd_meta_header	meta_header;	/* Metadata header for the segment */
-	u8			type;		/* Segment type (see enum cbd_seg_type) */
-	u8			state;		/* Segment state (see enum cbd_segment_state) */
-	u16			flags;		/* Flags for segment properties */
-	u32			next_seg;	/* ID of the next segment (if applicable) */
+	u8			type;
+	u8			state;
+	u16			flags;
+	u32			next_seg;
 };
 
 #define CBD_SEG_INFO_FLAGS_HAS_NEXT	(1 << 0) /* Flag indicating segment has a successor */
@@ -102,21 +102,21 @@ struct cbd_seg_ops {
 
 /* Initialization options for CBD segments */
 struct cbds_init_options {
-	enum cbd_seg_type	type;		/* Type of segment */
-	enum cbd_segment_state	state;		/* Initial state of the segment */
-	u32			seg_id;		/* Segment ID */
-	u32			data_off;	/* Data offset within the segment */
-	struct cbd_seg_ops	*seg_ops;	/* Segment operations */
+	enum cbd_seg_type	type;
+	enum cbd_segment_state	state;
+	u32			seg_id;
+	u32			data_off;
+	struct cbd_seg_ops	*seg_ops;
 };
 
 /* Main CBD segment structure */
 struct cbd_segment {
-	struct cbd_transport	*cbdt;		/* Associated transport */
-	struct cbd_seg_ops	*seg_ops;	/* Segment operations */
-	u32			seg_id;		/* Segment ID */
+	struct cbd_transport	*cbdt;
+	struct cbd_seg_ops	*seg_ops;
+	u32			seg_id;
 
-	void			*data;		/* Pointer to segment data */
-	u32			data_size;	/* Size of the segment data */
+	void			*data;
+	u32			data_size;
 };
 
 /* Function declarations for CBD segment operations */
