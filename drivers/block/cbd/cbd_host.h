@@ -39,7 +39,7 @@ struct cbd_host {
 };
 
 int cbd_host_register(struct cbd_transport *cbdt, char *hostname, u32 host_id);
-int cbd_host_unregister(struct cbd_transport *cbdt);
+void cbd_host_unregister(struct cbd_transport *cbdt);
 int cbd_host_clear(struct cbd_transport *cbdt, u32 host_id);
 bool cbd_host_info_is_alive(struct cbd_host_info *info);
 

@@ -252,39 +252,21 @@ static bool host_blkdevs_stopped(struct cbd_transport *cbdt, u32 host_id)
  *
  * This function unregisters a host that has been registered to the given
  * CBD transport. It first checks if a host is currently registered. If not,
- * it logs an error message and returns 0.
- *
- * If a host is registered, it verifies that all block devices and backends
- * associated with the host ID are stopped. If either are still active,
- * it returns -EBUSY to indicate the host cannot be unregistered at this time.
- *
- * If all checks pass, the function proceeds to cancel the heartbeat
- * delayed work and clear the host's info from the CBD transport. It then
- * frees the memory associated with the host structure.
- *
- * Return:
- * * 0 on successful unregistration or if no host is registered
- * * -EBUSY if block devices or backends are still active
+ * it logs an error message and returns.
  */
-int cbd_host_unregister(struct cbd_transport *cbdt)
+void cbd_host_unregister(struct cbd_transport *cbdt)
 {
 	struct cbd_host *host = cbdt->host;
 
 	if (!host) {
 		cbd_err("This host is not registered.");
-		return 0;
+		return;
 	}
-
-	if (!host_blkdevs_stopped(cbdt, host->host_id) ||
-			!host_backends_stopped(cbdt, host->host_id))
-		return -EBUSY;
 
 	cancel_delayed_work_sync(&host->hb_work);
 	cbdt_host_info_clear(cbdt, host->host_id);
 	cbdt->host = NULL;
 	kfree(host);
-
-	return 0;
 }
 
 int cbd_host_clear(struct cbd_transport *cbdt, u32 host_id)
