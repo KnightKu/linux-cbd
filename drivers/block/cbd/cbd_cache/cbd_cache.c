@@ -321,7 +321,7 @@ static void cache_destroy_keys(struct cbd_cache *cache)
 			key = CACHE_KEY(node);
 			node = rb_next(node);
 
-			cache_key_delete(key);  /* Delete each cache key */
+			cache_key_delete(key);
 		}
 		spin_unlock(&cache_tree->tree_lock);
 	}

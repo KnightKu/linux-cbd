@@ -248,7 +248,7 @@ void cache_seg_destroy(struct cbd_cache_segment *cache_seg)
 	cbd_segment_info_clear(&cache_seg->segment);
 }
 
-#define CBD_WAIT_NEW_CACHE_INTERVAL	100 /* usecs */
+#define CBD_WAIT_NEW_CACHE_INTERVAL	100
 #define CBD_WAIT_NEW_CACHE_COUNT	100
 
 /**

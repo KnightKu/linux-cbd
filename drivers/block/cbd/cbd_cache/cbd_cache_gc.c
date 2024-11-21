@@ -41,7 +41,6 @@ static bool need_gc(struct cbd_cache *cache)
 		return false;
 	}
 
-	/* Get addresses for dirty and key tail; wait for writeback to complete for the key before executing GC */
 	dirty_addr = cache_pos_addr(&cache->dirty_tail);
 	key_addr = cache_pos_addr(&cache->key_tail);
 	if (dirty_addr == key_addr) {
@@ -103,7 +102,6 @@ static int last_kset_gc(struct cbd_cache *cache, struct cbd_cache_kset_onmedia *
 
 	cur_seg = cache->key_tail.cache_seg;
 
-	/* Update key tail to the next segment specified in kset_onmedia */
 	next_seg = &cache->segments[kset_onmedia->next_cache_seg_id];
 	cache->key_tail.cache_seg = next_seg;
 	cache->key_tail.seg_off = 0;
@@ -111,7 +109,6 @@ static int last_kset_gc(struct cbd_cache *cache, struct cbd_cache_kset_onmedia *
 
 	cbd_cache_debug(cache, "gc advance kset seg: %u\n", cur_seg->cache_seg_id);
 
-	/* Clear the current segment from the segment map */
 	spin_lock(&cache->seg_map_lock);
 	clear_bit(cur_seg->cache_seg_id, cache->seg_map);
 	spin_unlock(&cache->seg_map_lock);
@@ -137,13 +134,11 @@ void cbd_cache_gc_fn(struct work_struct *work)
 	int i;
 
 	while (true) {
-		/* Check if garbage collection is needed */
 		if (!need_gc(cache))
 			break;
 
 		kset_onmedia = (struct cbd_cache_kset_onmedia *)cache_pos_addr(&cache->key_tail);
 
-		/* Handle the last kset differently */
 		if (kset_onmedia->flags & CBD_KSET_FLAGS_LAST) {
 			ret = last_kset_gc(cache, kset_onmedia);
 			if (ret)
@@ -151,7 +146,6 @@ void cbd_cache_gc_fn(struct work_struct *work)
 			continue;
 		}
 
-		/* Perform garbage collection on each key_onmedia in the kset_onmedia */
 		for (i = 0; i < kset_onmedia->key_num; i++) {
 			struct cbd_cache_key key_tmp = { 0 };
 
@@ -169,11 +163,9 @@ void cbd_cache_gc_fn(struct work_struct *work)
 			cache->key_tail.seg_off,
 			get_kset_onmedia_size(kset_onmedia));
 
-		/* Advance the key tail position after processing all keys */
 		cache_pos_advance(&cache->key_tail, get_kset_onmedia_size(kset_onmedia));
 		cache_encode_key_tail(cache);
 	}
 
-	/* Requeue the garbage collection work after the defined interval */
 	queue_delayed_work(cache->cache_wq, &cache->gc_work, CBD_CACHE_GC_INTERVAL);
 }

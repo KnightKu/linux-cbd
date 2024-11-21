@@ -91,7 +91,7 @@ again:
 		if (ret)
 			goto out;
 
-		goto again;  /* Retry allocation with the new segment. */
+		goto again;
 	}
 
 out:
@@ -146,7 +146,7 @@ static int cache_copy_to_req_bio(struct cbd_cache *cache, struct cbd_request *cb
 	spin_lock(&cache_seg->gen_lock);
 	if (key_gen < cache_seg->gen) {
 		spin_unlock(&cache_seg->gen_lock);
-		return -EINVAL;  /* Invalid key generation; return error. */
+		return -EINVAL;
 	}
 
 	spin_lock(&cbd_req->lock);
@@ -182,11 +182,11 @@ static void cache_copy_from_req_channel(struct cbd_cache *cache, struct cbd_requ
 	dst_pos.off = pos->seg_off;
 
 	if (off) {
-		cbds_pos_advance(&dst_pos, off);  /* Advance destination position by offset. */
-		cbds_pos_advance(&src_pos, off);   /* Advance source position by offset. */
+		cbds_pos_advance(&dst_pos, off);
+		cbds_pos_advance(&src_pos, off);
 	}
 
-	cbds_copy_data(&dst_pos, &src_pos, len);  /* Copy data from source to destination. */
+	cbds_copy_data(&dst_pos, &src_pos, len);
 }
 
 /**
@@ -233,8 +233,8 @@ static void miss_read_end_req(struct cbd_cache *cache, struct cbd_request *cbd_r
 			}
 			cache_copy_from_req_channel(cache, cbd_req, &key->cache_pos,
 						    key->off - cbd_req->off, key->len);
-			key->flags &= ~CBD_CACHE_KEY_FLAGS_EMPTY; /* Mark key as not empty. */
-			key->flags |= CBD_CACHE_KEY_FLAGS_CLEAN; /* Mark key as clean. */
+			key->flags &= ~CBD_CACHE_KEY_FLAGS_EMPTY;
+			key->flags |= CBD_CACHE_KEY_FLAGS_CLEAN;
 
 			/* Append the key to the cache. */
 			ret = cache_key_append(cache, key);
@@ -283,7 +283,7 @@ void miss_read_end_work_fn(struct work_struct *work)
 		cbd_req = list_first_entry(&tmp_list,
 					    struct cbd_request, inflight_reqs_node);
 		list_del_init(&cbd_req->inflight_reqs_node);
-		miss_read_end_req(cache, cbd_req);  /* Finalize read operation */
+		miss_read_end_req(cache, cbd_req);
 	}
 }
 
@@ -428,14 +428,11 @@ static struct cbd_request *create_backing_req(struct cbd_cache *cache, struct cb
 		cache_key_get(key);
 		new_req->priv_data = key;
 	}
-
-	/* Set the end request handler */
 	new_req->end_req = cache_backing_req_end_req;
 
 	return new_req;
 
 delete_key:
-	/* Clean up the key if allocation failed */
 	if (key)
 		cache_key_delete(key);
 out:
@@ -521,22 +518,14 @@ static int read_before(struct cbd_cache_key *key, struct cbd_cache_key *key_tmp,
 	 * meaning the requested data range is missing from the cache tree
 	 * and must be retrieved from the backend.
 	 */
-
-	/* Allocate a backend request for the range in `key` */
 	backing_req = create_backing_req(ctx->cache, ctx->cbd_req, ctx->req_done, key->len, true);
 	if (!backing_req) {
-		/* Allocation failed due to insufficient memory */
 		ret = -ENOMEM;
 		goto out;
 	}
 
-	/* Add the backend request to the submission list */
 	list_add(&backing_req->inflight_reqs_node, ctx->submit_req_list);
-
-	/* Update the `req_done` progress counter in `ctx` */
 	ctx->req_done += key->len;
-
-	/* Trim the front portion of `key` to reflect the handled segment */
 	cache_key_cutfront(key, key->len);
 
 	return 0;
@@ -590,17 +579,13 @@ static int read_overlap_tail(struct cbd_cache_key *key, struct cbd_cache_key *ke
 	 */
 	io_len = cache_key_lstart(key_tmp) - cache_key_lstart(key);
 	if (io_len) {
-		/* Create a backend request to retrieve the missing data */
 		backing_req = create_backing_req(ctx->cache, ctx->cbd_req, ctx->req_done, io_len, true);
 		if (!backing_req) {
 			ret = -ENOMEM;
 			goto out;
 		}
 
-		/* Add to submission list for backend retrieval */
 		list_add(&backing_req->inflight_reqs_node, ctx->submit_req_list);
-
-		/* Update request progress in `ctx` */
 		ctx->req_done += io_len;
 		cache_key_cutfront(key, io_len);
 	}
@@ -611,22 +596,18 @@ static int read_overlap_tail(struct cbd_cache_key *key, struct cbd_cache_key *ke
 	 */
 	io_len = cache_key_lend(key) - cache_key_lstart(key_tmp);
 	if (cache_key_empty(key_tmp)) {
-		/* `key_tmp` is empty; send a backend request for the overlap */
 		ret = send_backing_req(ctx->cache, ctx->cbd_req, ctx->req_done, io_len, false);
 		if (ret)
 			goto out;
 	} else {
-		/* Copy data from `key_tmp` to the request if it holds valid cache data */
 		ret = cache_copy_to_req_bio(ctx->cache, ctx->cbd_req, ctx->req_done,
 					io_len, &key_tmp->cache_pos, key_tmp->seg_gen);
 		if (ret) {
-			/* If copy fails, mark `key_tmp` for deletion */
 			list_add(&key_tmp->list_node, ctx->delete_key_list);
 			goto out;
 		}
 	}
 
-	/* Update request progress and adjust `key` */
 	ctx->req_done += io_len;
 	cache_key_cutfront(key, io_len);
 
@@ -680,7 +661,6 @@ static int read_overlap_contain(struct cbd_cache_key *key, struct cbd_cache_key 
 	 */
 	io_len = cache_key_lstart(key_tmp) - cache_key_lstart(key);
 	if (io_len) {
-		/* Create backend request for the missing data segment */
 		backing_req = create_backing_req(ctx->cache, ctx->cbd_req, ctx->req_done, io_len, true);
 		if (!backing_req) {
 			ret = -ENOMEM;
@@ -697,12 +677,10 @@ static int read_overlap_contain(struct cbd_cache_key *key, struct cbd_cache_key 
 	 */
 	io_len = key_tmp->len;
 	if (cache_key_empty(key_tmp)) {
-		/* Send backend request if `key_tmp` is empty */
 		ret = send_backing_req(ctx->cache, ctx->cbd_req, ctx->req_done, io_len, false);
 		if (ret)
 			goto out;
 	} else {
-		/* Copy cache data if `key_tmp` holds valid data */
 		ret = cache_copy_to_req_bio(ctx->cache, ctx->cbd_req, ctx->req_done,
 					io_len, &key_tmp->cache_pos, key_tmp->seg_gen);
 		if (ret) {
@@ -750,7 +728,7 @@ out:
 static int read_overlap_contained(struct cbd_cache_key *key, struct cbd_cache_key *key_tmp,
 		struct cbd_cache_tree_walk_ctx *ctx)
 {
-	struct cbd_cache_pos pos; /* Position structure for adjusting cache offset */
+	struct cbd_cache_pos pos;
 	int ret;
 
 	/*
@@ -762,20 +740,17 @@ static int read_overlap_contained(struct cbd_cache_key *key, struct cbd_cache_ke
 		if (ret)
 			goto out;
 	} else {
-		/* Copy data from `key_tmp` if it holds valid cached data */
 		cache_pos_copy(&pos, &key_tmp->cache_pos);
 		cache_pos_advance(&pos, cache_key_lstart(key) - cache_key_lstart(key_tmp));
 
 		ret = cache_copy_to_req_bio(ctx->cache, ctx->cbd_req, ctx->req_done,
 					key->len, &pos, key_tmp->seg_gen);
 		if (ret) {
-			/* Mark `key_tmp` for deletion if copy fails */
 			list_add(&key_tmp->list_node, ctx->delete_key_list);
 			goto out;
 		}
 	}
 
-	/* Update request progress and adjust `key` to reflect processed length */
 	ctx->req_done += key->len;
 	cache_key_cutfront(key, key->len);
 
@@ -813,33 +788,28 @@ out:
 static int read_overlap_head(struct cbd_cache_key *key, struct cbd_cache_key *key_tmp,
 		struct cbd_cache_tree_walk_ctx *ctx)
 {
-	struct cbd_cache_pos pos; /* Cache position for offset adjustment */
+	struct cbd_cache_pos pos;
 	u32 io_len;
 	int ret;
 
-	/* Calculate the length of the overlapping portion of `key` within `key_tmp` */
 	io_len = cache_key_lend(key_tmp) - cache_key_lstart(key);
 
-	/* Check if `key_tmp` is empty; if so, request data from the backend */
 	if (cache_key_empty(key_tmp)) {
 		ret = send_backing_req(ctx->cache, ctx->cbd_req, ctx->req_done, io_len, false);
 		if (ret)
 			goto out;
 	} else {
-		/* If valid data exists, copy from `key_tmp` to request */
 		cache_pos_copy(&pos, &key_tmp->cache_pos);
 		cache_pos_advance(&pos, cache_key_lstart(key) - cache_key_lstart(key_tmp));
 
 		ret = cache_copy_to_req_bio(ctx->cache, ctx->cbd_req, ctx->req_done,
 					io_len, &pos, key_tmp->seg_gen);
 		if (ret) {
-			/* Mark `key_tmp` for deletion if copy fails */
 			list_add(&key_tmp->list_node, ctx->delete_key_list);
 			goto out;
 		}
 	}
 
-	/* Update request progress and trim `key` */
 	ctx->req_done += io_len;
 	cache_key_cutfront(key, io_len);
 
@@ -881,7 +851,6 @@ static int read_walk_finally(struct cbd_cache_tree_walk_ctx *ctx)
 	struct cbd_cache_key *key = ctx->key;
 	int ret;
 
-	/* Send a backend request if any portion of `key` remains unhandled */
 	if (key->len) {
 		ret = send_backing_req(ctx->cache, ctx->cbd_req, ctx->req_done, key->len, true);
 		if (ret)
@@ -889,7 +858,6 @@ static int read_walk_finally(struct cbd_cache_tree_walk_ctx *ctx)
 		ctx->req_done += key->len;
 	}
 
-	/* Submit all queued backend requests from the walk's submission list */
 	list_for_each_entry_safe(backing_req, next_req, ctx->submit_req_list, inflight_reqs_node) {
 		list_del_init(&backing_req->inflight_reqs_node);
 		submit_backing_req(ctx->cache, backing_req);
@@ -965,7 +933,6 @@ static int cache_read(struct cbd_cache *cache, struct cbd_request *cbd_req)
 	LIST_HEAD(submit_req_list);
 	int ret;
 
-	/* Initialize the walk context with cache, request, and handling functions */
 	walk_ctx.cache = cache;
 	walk_ctx.req_done = 0;
 	walk_ctx.cbd_req = cbd_req;
@@ -980,22 +947,18 @@ static int cache_read(struct cbd_cache *cache, struct cbd_request *cbd_req)
 	walk_ctx.submit_req_list = &submit_req_list;
 
 next_tree:
-	/* Update the key offset and length based on the amount already processed */
 	key->off = cbd_req->off + walk_ctx.req_done;
 	key->len = cbd_req->data_len - walk_ctx.req_done;
 	if (key->len > CBD_CACHE_TREE_SIZE - (key->off & CBD_CACHE_TREE_SIZE_MASK))
 		key->len = CBD_CACHE_TREE_SIZE - (key->off & CBD_CACHE_TREE_SIZE_MASK);
 
-	/* Retrieve the appropriate cache tree for the current key offset */
 	cache_tree = get_cache_tree(cache, key->off);
 	spin_lock(&cache_tree->tree_lock);
 
 search:
-	/* Search the cache tree for a matching key, while tracking deletions */
 	prev_node = cache_tree_search(cache_tree, key, NULL, NULL, &delete_key_list);
 
 cleanup_tree:
-	/* Clean up any outdated keys marked for deletion */
 	if (!list_empty(&delete_key_list)) {
 		list_for_each_entry_safe(key_tmp, key_next, &delete_key_list, list_node) {
 			list_del_init(&key_tmp->list_node);
@@ -1004,11 +967,9 @@ cleanup_tree:
 		goto search;
 	}
 
-	/* Set up the starting node and key for the cache tree walk */
 	walk_ctx.start_node = prev_node;
 	walk_ctx.key = key;
 
-	/* Begin the cache tree walk to handle the read request */
 	ret = cache_tree_walk(cache, &walk_ctx);
 	if (ret == -EINVAL)
 		goto cleanup_tree;
@@ -1017,7 +978,6 @@ cleanup_tree:
 
 	spin_unlock(&cache_tree->tree_lock);
 
-	/* Continue with the next cache tree if the request isn't fully processed */
 	if (walk_ctx.req_done < cbd_req->data_len)
 		goto next_tree;
 
@@ -1065,41 +1025,34 @@ static int cache_write(struct cbd_cache *cache, struct cbd_request *cbd_req)
 	int ret;
 
 	while (true) {
-		/* Check if the entire requested data has been processed */
 		if (io_done >= length)
 			break;
 
-		/* Allocate a new cache key for the current data chunk */
 		key = cache_key_alloc(cache);
 		if (!key) {
 			ret = -ENOMEM;
 			goto err;
 		}
 
-		/* Set key offset and length, adjusting for cache tree boundaries */
 		key->off = offset + io_done;
 		key->len = length - io_done;
 		if (key->len > CBD_CACHE_TREE_SIZE - (key->off & CBD_CACHE_TREE_SIZE_MASK))
 			key->len = CBD_CACHE_TREE_SIZE - (key->off & CBD_CACHE_TREE_SIZE_MASK);
 
-		/* Allocate data segment and associate it with the cache key */
 		ret = cache_data_alloc(cache, key, cbd_req->cbdq->index);
 		if (ret) {
 			cache_key_put(key);
 			goto err;
 		}
 
-		/* Skip zero-length keys */
 		if (!key->len) {
 			cache_seg_put(key->cache_pos.cache_seg);
 			cache_key_put(key);
 			continue;
 		}
 
-		/* Copy data from request to cache segment based on key settings */
 		cache_copy_from_req_bio(cache, key, cbd_req, io_done);
 
-		/* Get cache tree and insert the cache key */
 		cache_tree = get_cache_tree(cache, key->off);
 		spin_lock(&cache_tree->tree_lock);
 		ret = cache_key_insert(cache, key, true);
@@ -1109,7 +1062,6 @@ static int cache_write(struct cbd_cache *cache, struct cbd_request *cbd_req)
 			goto unlock;
 		}
 
-		/* Append the cache key to the kset for persistence to media */
 		ret = cache_key_append(cache, key);
 		if (ret) {
 			cache_seg_put(key->cache_pos.cache_seg);
@@ -1117,7 +1069,6 @@ static int cache_write(struct cbd_cache *cache, struct cbd_request *cbd_req)
 			goto unlock;
 		}
 
-		/* Increment processed length */
 		io_done += key->len;
 		spin_unlock(&cache_tree->tree_lock);
 	}
@@ -1154,7 +1105,6 @@ int cache_flush(struct cbd_cache *cache)
 	for (i = 0; i < cache->n_ksets; i++) {
 		kset = get_kset(cache, i);
 
-		/* Acquire lock for safe access to kset data during flush */
 		spin_lock(&kset->kset_lock);
 		ret = cache_kset_close(cache, kset);
 		spin_unlock(&kset->kset_lock);

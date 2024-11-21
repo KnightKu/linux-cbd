@@ -32,7 +32,7 @@ static inline bool is_cache_clean(struct cbd_cache *cache)
 		cbd_cache_debug(cache, "dirty_tail: %u:%u magic: %llx, not expected: %llx\n",
 				pos->cache_seg->cache_seg_id, pos->seg_off,
 				kset_onmedia->magic, CBD_KSET_MAGIC);
-		return true; /* Incomplete dirty tail, cache is clean */
+		return true;
 	}
 
 	/* Verify the CRC checksum for data integrity */
@@ -40,10 +40,10 @@ static inline bool is_cache_clean(struct cbd_cache *cache)
 		cbd_cache_debug(cache, "dirty_tail: %u:%u crc: %x, not expected: %x\n",
 				pos->cache_seg->cache_seg_id, pos->seg_off,
 				cache_kset_crc(kset_onmedia), kset_onmedia->crc);
-		return true; /* Incomplete dirty tail, cache is clean */
+		return true;
 	}
 
-	return false; /* Complete dirty kset found, cache is not clean */
+	return false;
 }
 
 /**
@@ -57,17 +57,13 @@ static inline bool is_cache_clean(struct cbd_cache *cache)
  */
 void cache_writeback_exit(struct cbd_cache *cache)
 {
-	/* Flush any pending cache operations to ensure data consistency */
 	cache_flush(cache);
 
-	/* Wait until the cache is fully clean */
 	while (!is_cache_clean(cache))
 		schedule_timeout(HZ);
 
-	/* Cancel any delayed writeback work, ensuring no jobs remain */
 	cancel_delayed_work_sync(&cache->writeback_work);
 
-	/* Release bioset resources and free the bioset structure */
 	bioset_exit(cache->bioset);
 	kfree(cache->bioset);
 }
@@ -86,18 +82,16 @@ int cache_writeback_init(struct cbd_cache *cache)
 {
 	int ret;
 
-	/* Allocate memory for bioset and check for allocation failure */
 	cache->bioset = kzalloc(sizeof(*cache->bioset), GFP_KERNEL);
 	if (!cache->bioset) {
 		ret = -ENOMEM;
 		goto err;
 	}
 
-	/* Initialize bioset with specified parameters; handle failure */
 	ret = bioset_init(cache->bioset, 256, 0, BIOSET_NEED_BVECS);
 	if (ret) {
-		kfree(cache->bioset);  /* Free bioset if init fails */
-		cache->bioset = NULL;  /* Nullify pointer to avoid use-after-free */
+		kfree(cache->bioset);
+		cache->bioset = NULL;
 		goto err;
 	}
 
@@ -107,7 +101,7 @@ int cache_writeback_init(struct cbd_cache *cache)
 	return 0;
 
 err:
-	return ret;  /* Return error code on failure */
+	return ret;
 }
 
 /**
@@ -135,18 +129,14 @@ static int cache_key_writeback(struct cbd_cache *cache, struct cbd_cache_key *ke
 	u32 seg_remain;
 	u64 off;
 
-	/* Check if the cache key is already clean; if so, skip writeback */
 	if (cache_key_clean(key))
 		return 0;
 
 	pos = &key->cache_pos;
 
-	/* Get remaining segment size and check if it can contain the key's data */
 	seg_remain = cache_seg_remain(pos);
-	/* All data within one key must fit within the same segment */
 	BUG_ON(seg_remain < key->len);
 
-	/* Get the address within the cache position for writing */
 	addr = cache_pos_addr(pos);
 	off = key->off;
 
@@ -193,23 +183,16 @@ static int cache_kset_writeback(struct cbd_cache *cache,
 	for (i = 0; i < kset_onmedia->key_num; i++) {
 		key_onmedia = &kset_onmedia->data[i];
 
-		/* Allocate memory for the cache key structure */
 		key = cache_key_alloc(cache);
 		if (!key) {
 			cbd_cache_err(cache, "writeback error: failed to allocate key\n");
 			return -ENOMEM;
 		}
 
-		/* Decode on-media key data into the in-memory cache key structure */
 		cache_key_decode(key_onmedia, key);
-
-		/* Write back the key data to the backing storage */
 		ret = cache_key_writeback(cache, key);
-
-		/* Release the key after writeback, regardless of success or failure */
 		cache_key_put(key);
 
-		/* If writeback failed, log the error and return immediately */
 		if (ret) {
 			cbd_cache_err(cache, "writeback error: %d\n", ret);
 			return ret;
@@ -241,17 +224,12 @@ static void last_kset_writeback(struct cbd_cache *cache,
 {
 	struct cbd_cache_segment *next_seg;
 
-	/* Log the segment ID of the next cache segment for debugging */
 	cbd_cache_debug(cache, "last kset, next: %u\n", last_kset_onmedia->next_cache_seg_id);
 
-	/* Retrieve the next segment using the ID stored in the last kset */
 	next_seg = &cache->segments[last_kset_onmedia->next_cache_seg_id];
 
-	/* Update dirty_tail to point to the start of the next segment */
 	cache->dirty_tail.cache_seg = next_seg;
 	cache->dirty_tail.seg_off = 0;
-
-	/* Encode and store the updated dirty tail position */
 	cache_encode_dirty_tail(cache);
 }
 
@@ -281,21 +259,17 @@ static int kset_data_verify(struct cbd_cache *cache,
 {
 	u32 i;
 
-	/* Iterate through each key in the kset and verify data integrity */
 	for (i = 0; i < kset_onmedia->key_num; i++) {
 		struct cbd_cache_key key_tmp = { 0 };
 		struct cbd_cache_key *key;
 		struct cbd_cache_key_onmedia *key_onmedia;
 
-		/* Initialize a temporary key structure for verification */
 		key = &key_tmp;
 		cache_key_init(cache, key);
 
-		/* Decode the on-media key data into the temporary key structure */
 		key_onmedia = &kset_onmedia->data[i];
 		cache_key_decode(key_onmedia, key);
 
-		/* Compare computed and stored CRC values to verify data integrity */
 		if (key->data_crc != cache_key_data_crc(key)) {
 			cbd_cache_debug(cache, "key: %llu:%u data crc(%x) is not expected(%x), wait for data ready.\n",
 					key->off, key->len, cache_key_data_crc(key), key->data_crc);
@@ -316,14 +290,6 @@ static int kset_data_verify(struct cbd_cache *cache,
  * the cache's dirty_tail for new ksets that need to be written back. The function
  * processes each kset until the cache is clean, ensuring that all dirty data is
  * properly persisted to the backing storage.
- *
- * The function performs the following steps:
- * 1. Checks if the cache is clean; if so, it exits the loop.
- * 2. Retrieves the kset_onmedia from the current dirty_tail position.
- * 3. Handles the last kset, if identified, and continues the loop.
- * 4. Verifies the data integrity of the kset using CRC, if configured.
- * 5. Performs the writeback of the kset to the backing storage.
- * 6. Advances the dirty_tail position and encodes the updated state.
  */
 void cache_writeback_fn(struct work_struct *work)
 {
@@ -334,45 +300,36 @@ void cache_writeback_fn(struct work_struct *work)
 
 	/* Loop until all dirty data is written back and the cache is clean */
 	while (true) {
-		/* Check if the cache is clean; exit if no dirty data remains */
 		if (is_cache_clean(cache))
 			break;
 
-		/* Get kset_onmedia from the current dirty_tail position */
 		addr = cache_pos_addr(&cache->dirty_tail);
 		kset_onmedia = (struct cbd_cache_kset_onmedia *)addr;
 
-		/* Handle the last kset, which indicates the end of a segment */
 		if (kset_onmedia->flags & CBD_KSET_FLAGS_LAST) {
 			last_kset_writeback(cache, kset_onmedia);
 			continue;
 		}
 
 #ifdef CONFIG_CBD_CACHE_DATA_CRC
-		/* Verify the data integrity of the kset using CRC */
 		ret = kset_data_verify(cache, kset_onmedia);
 		if (ret)
-			break;  /* Exit on CRC verification failure */
+			break;
 #endif
 
-		/* Write back the kset to the backing storage */
 		ret = cache_kset_writeback(cache, kset_onmedia);
 		if (ret)
-			break;  /* Exit on writeback failure */
+			break;
 
-		/* Log the advancement of writeback progress for debugging */
 		cbd_cache_debug(cache, "writeback advance: %u:%u %u\n",
 			cache->dirty_tail.cache_seg->cache_seg_id,
 			cache->dirty_tail.seg_off,
 			get_kset_onmedia_size(kset_onmedia));
 
-		/* Advance the dirty_tail position based on the size of the kset */
 		cache_pos_advance(&cache->dirty_tail, get_kset_onmedia_size(kset_onmedia));
 
-		/* Encode the updated dirty tail position for persistence */
 		cache_encode_dirty_tail(cache);
 	}
 
-	/* Requeue the writeback work to continue processing after a delay */
 	queue_delayed_work(cache->cache_wq, &cache->writeback_work, CBD_CACHE_WRITEBACK_INTERVAL);
 }
