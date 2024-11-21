@@ -137,18 +137,24 @@ void cbd_segment_init(struct cbd_transport *cbdt, struct cbd_segment *segment,
 
 /**
  * cbd_segment_clear - Zero out a CBD segment.
- * @cbdt: The CBD transport structure.
- * @seg_id: The ID of the segment to clear.
+ * @cbdt:	The CBD transport structure.
+ * @seg_id:	The ID of the segment to clear.
+ * @clear_size:	The size of the segment to clear. If 0, the full segment size
+ *		(CBDT_SEG_SIZE) will be cleared.
  *
- * Zeroes the entire data range of a segment specified by seg_id within the
- * provided transport.
+ * Clears the specified data range of a segment identified by seg_id within
+ * the provided transport structure. If clear_size is 0, the entire segment
+ * is cleared.
  */
-void cbd_segment_clear(struct cbd_transport *cbdt, u32 seg_id)
+void cbd_segment_clear(struct cbd_transport *cbdt, u32 seg_id, u32 clear_size)
 {
 	struct cbd_segment_info *segment_info;
 
 	segment_info = cbdt_get_segment_info(cbdt, seg_id);
-	cbdt_zero_range(cbdt, segment_info, CBDT_SEG_SIZE);
+
+	if (!clear_size)
+		clear_size = CBDT_SEG_SIZE;
+	cbdt_zero_range(cbdt, segment_info, clear_size);
 }
 
 /**

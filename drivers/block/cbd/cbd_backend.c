@@ -307,7 +307,7 @@ static int create_handlers(struct cbd_backend *cbdb, bool new_backend)
 				goto destroy_handlers;
 			}
 			/* clear all channel segment before using it */
-			cbd_segment_clear(cbdb->cbdt, channel_id);
+			cbd_segment_clear(cbdb->cbdt, channel_id, 0);
 			backend_info->handler_channels[i] = channel_id;
 		} else {
 			channel_id = backend_info->handler_channels[i];
@@ -871,7 +871,7 @@ static void backend_segs_clear(struct cbd_transport *cbdt, u32 backend_id)
 			channel_info = (struct cbd_channel_seg_info *)seg_info;
 			/* release the channels backend is using */
 			if (channel_info->backend_id == backend_id)
-				cbd_segment_clear(cbdt, i);
+				cbd_segment_clear(cbdt, i, 0);
 		}
 
 		if (seg_info->type == cbds_type_cache) {
@@ -879,7 +879,7 @@ static void backend_segs_clear(struct cbd_transport *cbdt, u32 backend_id)
 
 			/* clear cache segments */
 			if (cache_seg_info->backend_id == backend_id)
-				cbd_segment_clear(cbdt, i);
+				cbd_segment_clear(cbdt, i, 0);
 		}
 	}
 }
