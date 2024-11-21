@@ -29,7 +29,7 @@ static int cbd_##OBJ##s_init(struct cbd_transport *cbdt)			\
 										\
 	u32 memsize = struct_size(devs, OBJ##_devs,				\
 			cbdt->transport_info->OBJ##_num);			\
-	devs = kzalloc(memsize, GFP_KERNEL);					\
+	devs = kvzalloc(memsize, GFP_KERNEL);					\
 	if (!devs) {								\
 		return -ENOMEM;							\
 	}									\
@@ -73,7 +73,7 @@ del_device:									\
 		device_unregister(dev);						\
 	}									\
 devs_free:									\
-	kfree(devs);								\
+	kvfree(devs);								\
 	return ret;								\
 }										\
 										\
@@ -95,7 +95,7 @@ static void cbd_##OBJ##s_exit(struct cbd_transport *cbdt)			\
 										\
 	device_unregister(&devs->OBJ##s_dev);					\
 										\
-	kfree(devs);								\
+	kvfree(devs);								\
 	cbdt->cbd_##OBJ##s_dev = NULL;						\
 										\
 	return;									\
