@@ -327,13 +327,6 @@ static int handle_mgmt_cmd(struct cbd_handler *handler)
  *
  * If a new mgmt_cmd is detected, it will be processed; if none are available, the function
  * will end this work iteration. The execution cycle of handle_mgmt_work is set to 1 second.
- *
- * The function follows a loop that:
- * 1. Checks if the current mgmt_cmd has been processed using cbdc_mgmt_completed.
- * 2. If not completed, it calls handle_mgmt_cmd to handle the mgmt_cmd.
- * 3. If handling is successful, it checks again for more mgmt_cmds.
- * 4. Once there are no new mgmt_cmds to process, it queues the work to run again
- *    after 1 second.
  */
 static void handle_mgmt_work_fn(struct work_struct *work)
 {

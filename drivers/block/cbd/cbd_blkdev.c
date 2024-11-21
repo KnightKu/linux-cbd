@@ -190,18 +190,15 @@ static int cbd_blkdev_create_queues(struct cbd_blkdev *cbd_blkdev, u32 *channels
 	int ret;
 	struct cbd_queue *cbdq;
 
-	/* Allocate memory for the queues associated with the block device */
 	cbd_blkdev->queues = kcalloc(cbd_blkdev->num_queues, sizeof(struct cbd_queue), GFP_KERNEL);
 	if (!cbd_blkdev->queues)
 		return -ENOMEM;
 
-	/* Initialize each queue */
 	for (i = 0; i < cbd_blkdev->num_queues; i++) {
 		cbdq = &cbd_blkdev->queues[i];
 		cbdq->cbd_blkdev = cbd_blkdev;
 		cbdq->index = i;
 
-		/* Start the queue with the specified channel */
 		ret = cbd_queue_start(cbdq, channels[i]);
 		if (ret)
 			goto err;
@@ -210,7 +207,6 @@ static int cbd_blkdev_create_queues(struct cbd_blkdev *cbd_blkdev, u32 *channels
 	return 0;
 
 err:
-	/* Clean up by destroying the queues if initialization fails */
 	cbd_blkdev_destroy_queues(cbd_blkdev);
 	return ret;
 }
@@ -261,14 +257,12 @@ static int disk_start(struct cbd_blkdev *cbd_blkdev)
 	cbd_blkdev->tag_set.timeout = 0;
 	cbd_blkdev->tag_set.driver_data = cbd_blkdev;
 
-	/* Allocate the tag set for block management */
 	ret = blk_mq_alloc_tag_set(&cbd_blkdev->tag_set);
 	if (ret) {
 		cbd_blk_err(cbd_blkdev, "failed to alloc tag set %d", ret);
 		goto err;
 	}
 
-	/* Allocate the disk structure for this block device */
 	disk = blk_mq_alloc_disk(&cbd_blkdev->tag_set, &lim, cbd_blkdev);
 	if (IS_ERR(disk)) {
 		ret = PTR_ERR(disk);
@@ -276,7 +270,6 @@ static int disk_start(struct cbd_blkdev *cbd_blkdev)
 		goto out_tag_set;
 	}
 
-	/* Set the disk name and properties */
 	snprintf(disk->disk_name, sizeof(disk->disk_name), "cbd%d",
 		 cbd_blkdev->mapped_id);
 
@@ -290,7 +283,6 @@ static int disk_start(struct cbd_blkdev *cbd_blkdev)
 	cbdt_add_blkdev(cbd_blkdev->cbdt, cbd_blkdev);
 	cbd_blkdev->blkdev_info.mapped_id = cbd_blkdev->blkdev_id;
 
-	/* Set the capacity of the block device */
 	set_capacity(cbd_blkdev->disk, cbd_blkdev->dev_size);
 	set_disk_ro(cbd_blkdev->disk, false);
 
@@ -514,17 +506,14 @@ static int blkdev_init(struct cbd_blkdev *cbd_blkdev, struct cbd_backend_info *b
 	if (backend_info->host_id == cbdt->host->host_id)
 		cbd_blkdev->backend = cbdt_get_backend(cbdt, backend_id);
 
-	/* Initialize block device information */
 	cbd_blkdev->blkdev_info.backend_id = backend_id;
 	cbd_blkdev->blkdev_info.host_id = cbdt->host->host_id;
 	cbd_blkdev->blkdev_info.state = cbd_blkdev_state_running;
 
-	/* Create queues for the block device */
 	ret = cbd_blkdev_create_queues(cbd_blkdev, backend_info->handler_channels);
 	if (ret < 0)
 		goto err;
 
-	/* Initialize cache if the backend has caching enabled */
 	if (cbd_backend_cache_on(backend_info)) {
 		ret = blkdev_cache_init(cbd_blkdev);
 		if (ret)
@@ -552,13 +541,7 @@ static void blkdev_destroy(struct cbd_blkdev *cbd_blkdev)
  * @queues: Number of queues to be used by the block device.
  *
  * This function responds to the "dev-start" sysfs command by initializing
- * the block device, validating its parameters, and starting the device.
- * It performs the following steps:
- * 1. Reads the backend information for the specified backend_id.
- * 2. Validates the block device parameters using blkdev_start_validate.
- * 3. Allocates memory for the block device structure.
- * 4. Initializes the block device with the provided backend information.
- * 5. Starts the disk.
+ * the block device, validating its parameters.
  *
  * Returns 0 on success, or a negative error code on failure.
  */
@@ -602,14 +585,7 @@ blkdev_free:
  * @cbdt: Pointer to the transport structure.
  * @devid: ID of the block device to be stopped.
  *
- * This function responds to the "dev-stop" sysfs command by stopping
- * the specified block device. It performs the following steps:
- * 1. Retrieves the block device structure associated with the given devid.
- * 2. Locks the block device for thread safety.
- * 3. Checks if the block device is currently open; if it is it unlocks and returns -EBUSY.
- * 4. If the device is not open, it removes the block device from the transport.
- * 5. Stops the disk and frees the block device resources.
- * 6. Clears the block device info from the transport structure.
+ * This function responds to the "dev-stop" sysfs command.
  *
  * Returns 0 on success, or a negative error code on failure.
  */
@@ -643,13 +619,7 @@ int cbd_blkdev_stop(struct cbd_transport *cbdt, u32 devid)
  * @cbdt: Pointer to the transport structure.
  * @devid: ID of the block device to be cleared.
  *
- * This function responds to the "dev-clear" sysfs command by performing
- * the following operations:
- * 1. Reads the block device information associated with the given devid.
- * 2. If the block device info is corrupted, it logs an error and returns -EINVAL.
- * 3. Checks if the block device is still alive; if it is, logs an error and returns -EBUSY.
- * 4. If the block device state is "none," it returns 0 without further action.
- * 5. Clears the block device information from the transport structure.
+ * This function responds to the "dev-clear" sysfs command.
  *
  * Returns 0 on success, or a negative error code on failure.
  */
@@ -680,11 +650,7 @@ int cbd_blkdev_clear(struct cbd_transport *cbdt, u32 devid)
  * cbd_blkdev_init - Initialize the block device subsystem.
  *
  * This function is called during the loading of the CBD module to register
- * the block device major number. It performs the following operations:
- * 1. Attempts to register a block device with a dynamic major number
- *    using the name "cbd".
- * 2. If the registration is successful, it returns 0.
- * 3. If the registration fails, it returns the negative error code.
+ * the block device major number.
  *
  * Returns: 0 on success, or a negative error code on failure.
  */

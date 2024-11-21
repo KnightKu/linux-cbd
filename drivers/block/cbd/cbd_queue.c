@@ -169,15 +169,6 @@ static void advance_data_tail(struct cbd_queue *cbdq, u32 data_off, u32 data_len
  * queue and, if applicable, advancing the data tail based on the provided
  * cbd_request. It ensures that access to the submission ring is thread-safe
  * by using a spin lock.
- *
- * The function performs the following steps:
- * 1. Acquires the spin lock to protect the submission ring.
- * 2. Advances the submission ring by calling advance_subm_ring.
- * 3. If the request has data (i.e., it is not a "no data" request) and has a
- *    valid data length, it calls advance_data_tail to update the data tail
- *    with the specified data offset and length, rounded up to the nearest
- *    PAGE_SIZE.
- * 4. Releases the spin lock after the operations are completed.
  */
 void cbd_queue_advance(struct cbd_queue *cbdq, struct cbd_request *cbd_req)
 {
@@ -255,15 +246,6 @@ out:
  * This function is called to handle the completion of requests. It is queued after a submission
  * entry (SE) is submitted to the submission ring and waits for the backend to return the corresponding
  * completion entry (CE).
- *
- * The function performs the following steps:
- * 1. Acquires the lock on the compression lock to safely retrieve a CE.
- * 2. If no CE is available, it invokes `complete_miss` to handle the absence.
- * 3. If it finds the corresponding inflight request using the CE's request ID.
- * 4. If the inflight request is not found, an error is logged, and it goes to handle the miss.
- * 5. If enabled, it verifies the CE against the request using CRC checks.
- * 6. Advances the completion tail and marks the inflight request as completed.
- * 7. It loops again to process any further available CEs.
  *
  * If a miss is encountered and a retry is needed (indicated by -EAGAIN), it will continue to loop
  * until there are no more CEs to process.

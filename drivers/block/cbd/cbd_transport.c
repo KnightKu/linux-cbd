@@ -485,15 +485,6 @@ static bool hosts_stopped(struct cbd_transport *cbdt)
  * @cbdt: Pointer to the CBD transport structure containing transport info
  * @force: Boolean flag to force format validation
  *
- * This function checks the following conditions:
- * 1. If the magic number indicates that the transport format already exists,
- *    return -EEXIST if it does and force is not set.
- * 2. If the transport is currently in use (if the magic number matches and
- *    hosts are not stopped), return -EBUSY if it is.
- * 3. Validate the size of the device, ensuring it meets the minimum size
- *    requirement. If the size is below the minimum, log an error and
- *    return -ENOSPC.
- *
  * Return: 0 on success, negative error codes on failure indicating specific
  *         validation issues.
  */
@@ -617,17 +608,6 @@ static void segments_format(struct cbd_transport *cbdt)
  * for use. It ensures that all necessary space is allocated and initialized
  * before the transport can be registered or used.
  *
- * Steps:
- * 1. Validate the format by calling `format_validate()`, which checks if the
- *    transport is already initialized and if the size is sufficient. If the
- *    validation fails, an error code is returned.
- * 2. Initialize the transport info structure using `format_transport_info()`,
- *    which sets up the magic number, version, flags, and calculates offsets
- *    and sizes for various sections of the transport.
- * 3. Zero out all area of objects infos in transport info to ensure no stale data remains.
- * 4. Call `segments_format()` to format the segment structures, which
- *    initializes the segments based on the previously computed parameters.
- *
  * The function returns 0 on success or a negative error code if an error
  * occurred during validation or formatting.
  */
@@ -655,16 +635,6 @@ static int cbd_transport_format(struct cbd_transport *cbdt, bool force)
  * It processes various commands related to backend management, device control,
  * and host operations. All transport metadata allocation or reclamation
  * should occur within this function to ensure proper control flow and exclusivity.
- *
- * The function performs the following tasks:
- * 1. Checks for administrative permissions.
- * 2. Duplicates the input buffer containing administrative options.
- * 3. Parses the administrative options from the buffer.
- * 4. Acquires a mutex lock to ensure mutual exclusion while performing
- *    operations related to the CBD transport.
- * 5. Switches based on the specified operation, executing corresponding
- *    backend or device management functions.
- * 6. Releases the mutex lock after completing the operation.
  *
  * Note: For single-host scenarios, the `adm_lock` mutex is sufficient
  * to manage mutual exclusion. However, in multi-host scenarios,
@@ -869,29 +839,6 @@ const struct dax_holder_operations cbd_dax_holder_ops = {
  * cbd_transport structure. It checks for the correctness of the magic number,
  * endianness, and various feature flags specified in the transport info.
  *
- * Steps:
- * 1. Check the magic number to ensure it matches the expected value,
- *    CBD_TRANSPORT_MAGIC. If it does not match, an error is logged, and
- *    -EINVAL is returned.
- * 2. Retrieve and convert the flags field from the transport info to
- *    host-endian format.
- * 3. Verify the endianness of the transport matches the system's endianness:
- *    - If the system is big-endian, the transport should indicate it is
- *      big-endian (CBDT_INFO_F_BIGENDIAN).
- *    - If the system is little-endian, the transport should not indicate
- *      big-endian. If there is a mismatch, an error is logged, and
- *      -EINVAL is returned.
- * 4. Check if the necessary CRC features are enabled in the kernel
- *    configuration based on the flags:
- *    - If CBDT_INFO_F_CHANNEL_CRC is set and CONFIG_CBD_CHANNEL_CRC is not
- *      defined, an error is logged, and -EOPNOTSUPP is returned.
- *    - If CBDT_INFO_F_CHANNEL_DATA_CRC is set and CONFIG_CBD_CHANNEL_DATA_CRC
- *      is not defined, an error is logged, and -EOPNOTSUPP is returned.
- *    - If CBDT_INFO_F_CACHE_DATA_CRC is set and CONFIG_CBD_CACHE_DATA_CRC is
- *      not defined, an error is logged, and -EOPNOTSUPP is returned.
- * 5. If CBDT_INFO_F_MULTIHOST is set and CONFIG_CBD_MULTIHOST is not
- *      defined, an error is logged, and -EOPNOTSUPP is returned.
- *
  * The function returns 0 on success or a negative error code if any
  * validation fails.
  */
@@ -995,20 +942,6 @@ static void transport_free(struct cbd_transport *cbdt)
  * specified block device. It opens the block device, obtains a DAX device
  * associated with it, and sets up the transport structure with the necessary
  * information for direct access.
- *
- * Steps:
- * 1. Open the block device specified by the given path with read and write
- *    access. If the operation fails, log the error and clean up.
- * 2. Get the DAX device associated with the opened block device. If this
- *    operation fails, log the error and clean up the opened file.
- * 3. Acquire a read lock on the DAX device to ensure safe access to its
- *    memory. It uses dax_direct_access to obtain the kaddr at offset 0,
- *    which corresponds to the address of cbdt->transport_info for subsequent
- *    transport information initialization.
- * 4. If the direct access is successful, store the opened block device file
- *    pointer, the DAX device pointer, and the address of the transport info
- *    structure in the CBD transport structure.
- * 5. Release the read lock after successful setup.
  *
  * Returns:
  * - 0 on success.
