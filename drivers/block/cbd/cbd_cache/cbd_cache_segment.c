@@ -279,9 +279,6 @@ again:
 	cache_seg = &cache->segments[seg_id];
 	cache_seg->cache_seg_id = seg_id;
 
-	/* Zero out the memory region for the segment data */
-	cbdt_zero_range(cache->cbdt, cache_seg->segment.data, cache_seg->segment.data_size);
-
 	return cache_seg;
 }
 
@@ -327,6 +324,9 @@ static void cache_seg_invalidate(struct cbd_cache_segment *cache_seg)
 
 	cache = cache_seg->cache;
 	cache_seg_gen_increase(cache_seg);
+
+	/* Zero out the memory region for the segment data */
+	cbdt_zero_range(cache->cbdt, cache_seg->segment.data, cache_seg->segment.data_size);
 
 	spin_lock(&cache->seg_map_lock);
 	clear_bit(cache_seg->cache_seg_id, cache->seg_map);
