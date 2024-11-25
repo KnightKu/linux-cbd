@@ -124,7 +124,7 @@ void cbd_segment_info_clear(struct cbd_segment *segment);
 void cbd_segment_clear(struct cbd_transport *cbdt, u32 segment_id);
 void cbd_segment_init(struct cbd_transport *cbdt, struct cbd_segment *segment,
 		      struct cbds_init_options *options);
-void cbds_copy_to_bio(struct cbd_segment *segment,
+int cbds_copy_to_bio(struct cbd_segment *segment,
 		      u32 data_off, u32 data_len, struct bio *bio, u32 bio_off);
 void cbds_copy_from_bio(struct cbd_segment *segment,
 			u32 data_off, u32 data_len, struct bio *bio, u32 bio_off);

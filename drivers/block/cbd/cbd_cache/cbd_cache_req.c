@@ -142,6 +142,7 @@ static int cache_copy_to_req_bio(struct cbd_cache *cache, struct cbd_request *cb
 {
 	struct cbd_cache_segment *cache_seg = pos->cache_seg;
 	struct cbd_segment *segment = &cache_seg->segment;
+	int ret;
 
 	spin_lock(&cache_seg->gen_lock);
 	if (key_gen < cache_seg->gen) {
@@ -150,11 +151,11 @@ static int cache_copy_to_req_bio(struct cbd_cache *cache, struct cbd_request *cb
 	}
 
 	spin_lock(&cbd_req->lock);
-	cbds_copy_to_bio(segment, pos->seg_off, len, cbd_req->bio, bio_off);
+	ret = cbds_copy_to_bio(segment, pos->seg_off, len, cbd_req->bio, bio_off);
 	spin_unlock(&cbd_req->lock);
 	spin_unlock(&cache_seg->gen_lock);
 
-	return 0;
+	return ret;
 }
 
 /*

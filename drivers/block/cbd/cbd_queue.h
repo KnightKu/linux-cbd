@@ -138,14 +138,17 @@ static inline bool cbd_req_nodata(struct cbd_request *cbd_req)
 	}
 }
 
-static inline void copy_data_from_cbdreq(struct cbd_request *cbd_req)
+static inline int copy_data_from_cbdreq(struct cbd_request *cbd_req)
 {
 	struct bio *bio = cbd_req->bio;
 	struct cbd_queue *cbdq = cbd_req->cbdq;
+	int ret;
 
 	spin_lock(&cbd_req->lock);
-	cbdc_copy_to_bio(&cbdq->channel, cbd_req->data_off, cbd_req->data_len, bio, cbd_req->bio_off);
+	ret = cbdc_copy_to_bio(&cbdq->channel, cbd_req->data_off, cbd_req->data_len, bio, cbd_req->bio_off);
 	spin_unlock(&cbd_req->lock);
+
+	return ret;
 }
 
 static inline bool inflight_reqs_empty(struct cbd_queue *cbdq)
@@ -169,9 +172,14 @@ static inline void inflight_add_req(struct cbd_queue *cbdq, struct cbd_request *
 static inline void complete_inflight_req(struct cbd_queue *cbdq, struct cbd_request *cbd_req, int ret)
 {
 	if (cbd_req->op == CBD_OP_READ) {
+		int copy_ret = 0;
+
 		spin_lock(&cbdq->channel.submr_lock);
-		copy_data_from_cbdreq(cbd_req);
+		copy_ret = copy_data_from_cbdreq(cbd_req);
 		spin_unlock(&cbdq->channel.submr_lock);
+
+		if (!ret && copy_ret)
+			ret = copy_ret;
 	}
 
 	spin_lock(&cbdq->inflight_reqs_lock);

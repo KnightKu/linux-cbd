@@ -367,7 +367,7 @@ int cbd_channel_init(struct cbd_channel *channel, struct cbd_channel_init_option
 void cbd_channel_destroy(struct cbd_channel *channel);
 void cbdc_copy_from_bio(struct cbd_channel *channel,
 		u32 data_off, u32 data_len, struct bio *bio, u32 bio_off);
-void cbdc_copy_to_bio(struct cbd_channel *channel,
+int cbdc_copy_to_bio(struct cbd_channel *channel,
 		u32 data_off, u32 data_len, struct bio *bio, u32 bio_off);
 u32 cbd_channel_crc(struct cbd_channel *channel, u32 data_off, u32 data_len);
 int cbdc_map_pages(struct cbd_channel *channel, struct bio *bio, u32 off, u32 size);

@@ -209,7 +209,7 @@ void cbds_copy_data(struct cbd_seg_pos *dst_pos,
  * Copies data from a segment into a bio, handling segment boundaries by using
  * the sanitize_pos function and bio page boundaries with bio_for_each_segment.
  */
-void cbds_copy_to_bio(struct cbd_segment *segment,
+int cbds_copy_to_bio(struct cbd_segment *segment,
 		u32 data_off, u32 data_len, struct bio *bio, u32 bio_off)
 {
 	struct bio_vec bv;
@@ -218,6 +218,7 @@ void cbds_copy_to_bio(struct cbd_segment *segment,
 	u32 to_copy, page_off = 0;
 	struct cbd_seg_pos pos = { .segment = segment,
 				   .off = data_off };
+	int ret;
 next:
 	bio_for_each_segment(bv, bio, iter) {
 		if (bio_off > bv.bv_len) {
@@ -239,7 +240,11 @@ again:
 		if (to_copy > data_len)
 			to_copy = data_len;
 		flush_dcache_page(bv.bv_page);
-		copy_mc_to_kernel(dst + page_off, segment->data + pos.off, to_copy);
+		ret = copy_mc_to_kernel(dst + page_off, segment->data + pos.off, to_copy);
+		if (ret) {
+			kunmap_local(dst);
+			return ret;
+		}
 
 		/* advance */
 		pos.off += to_copy;
@@ -247,7 +252,7 @@ again:
 		data_len -= to_copy;
 		if (!data_len) {
 			kunmap_local(dst);
-			return;
+			return 0;
 		}
 
 		/* more data in this bv page */
@@ -260,6 +265,8 @@ again:
 		bio = bio->bi_next;
 		goto next;
 	}
+
+	return 0;
 }
 
 /**

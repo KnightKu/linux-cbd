@@ -3,10 +3,10 @@
 #include "cbd_transport.h"
 #include "cbd_channel.h"
 
-void cbdc_copy_to_bio(struct cbd_channel *channel,
+int cbdc_copy_to_bio(struct cbd_channel *channel,
 		u32 data_off, u32 data_len, struct bio *bio, u32 bio_off)
 {
-	cbds_copy_to_bio(&channel->segment, data_off, data_len, bio, bio_off);
+	return cbds_copy_to_bio(&channel->segment, data_off, data_len, bio, bio_off);
 }
 
 void cbdc_copy_from_bio(struct cbd_channel *channel,
