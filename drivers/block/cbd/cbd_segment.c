@@ -190,7 +190,7 @@ void cbds_copy_data(struct cbd_seg_pos *dst_pos,
 		if (to_copy > src_pos->segment->data_size - src_pos->off)
 			to_copy = src_pos->segment->data_size - src_pos->off;
 
-		memcpy(dst_pos->segment->data + dst_pos->off, src_pos->segment->data + src_pos->off, to_copy);
+		memcpy_flushcache(dst_pos->segment->data + dst_pos->off, src_pos->segment->data + src_pos->off, to_copy);
 
 		copied += to_copy;
 		cbds_pos_advance(dst_pos, to_copy);
@@ -239,7 +239,7 @@ again:
 		if (to_copy > data_len)
 			to_copy = data_len;
 		flush_dcache_page(bv.bv_page);
-		memcpy(dst + page_off, segment->data + pos.off, to_copy);
+		copy_mc_to_kernel(dst + page_off, segment->data + pos.off, to_copy);
 
 		/* advance */
 		pos.off += to_copy;
@@ -300,7 +300,7 @@ again:
 		if (to_copy > data_len)
 			to_copy = data_len;
 
-		memcpy(segment->data + pos.off, src + page_off, to_copy);
+		memcpy_flushcache(segment->data + pos.off, src + page_off, to_copy);
 		flush_dcache_page(bv.bv_page);
 
 		/* advance */

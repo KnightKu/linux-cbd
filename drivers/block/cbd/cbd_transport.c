@@ -141,7 +141,6 @@ again:										\
 					      OBJ_SIZE,				\
 					      NULL);				\
 		if (!latest || latest->state == cbd_##OBJ##_state_none) {	\
-			cbdt_zero_range(cbdt, _info, OBJ_STRIDE);		\
 			*id = i;						\
 			goto out;						\
 		}								\
@@ -195,10 +194,9 @@ void cbdt_##OBJ##_info_write(struct cbd_transport *cbdt,			\
 	info = __get_##OBJ##_info(cbdt, id);					\
 										\
 	info = (void *)info + (info_index * OBJ_SIZE);				\
-	memcpy(info, data, data_size);						\
+	memcpy_flushcache(info, data, data_size);				\
 	info->meta_header.crc = cbd_meta_crc(&info->meta_header, OBJ_SIZE);	\
 	mutex_unlock(&cbdt->lock);						\
-	cbdt_flush(cbdt, info, data_size);					\
 }										\
 										\
 void cbdt_##OBJ##_info_clear(struct cbd_transport *cbdt, u32 id)		\
