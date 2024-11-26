@@ -139,7 +139,7 @@ void *cbd_segment_addr(struct cbd_segment *segment);
 
 #define cbd_for_each_segment_info(cbdt, i, segment_info)			\
 	for (i = 0;								\
-	     i < cbdt->transport_info->segment_num &&				\
+	     i < cbdt->transport_info.segment_num &&				\
 	     (segment_info = cbdt_segment_info_read(cbdt, i, NULL));		\
 	     i++)
 

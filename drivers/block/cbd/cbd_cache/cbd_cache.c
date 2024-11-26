@@ -377,9 +377,9 @@ static int cache_validate(struct cbd_transport *cbdt,
 		goto err;
 	}
 
-	if (cache_info->n_segs > cbdt->transport_info->segment_num) {
+	if (cache_info->n_segs > cbdt->transport_info.segment_num) {
 		cbdt_err(cbdt, "too large cache_segs: %u, segment_num: %u\n",
-				cache_info->n_segs, cbdt->transport_info->segment_num);
+				cache_info->n_segs, cbdt->transport_info.segment_num);
 		goto err;
 	}
 

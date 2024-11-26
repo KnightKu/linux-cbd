@@ -708,7 +708,7 @@ static int backend_validate(struct cbd_transport *cbdt, char *path,
 	} else {
 		u32 backend_id_tmp;
 
-		if (*backend_id != U32_MAX && *backend_id >= cbdt->transport_info->backend_num)
+		if (*backend_id != U32_MAX && *backend_id >= cbdt->transport_info.backend_num)
 			return -EINVAL;
 
 		ret = cbd_backend_find_id_by_path(cbdt, host_id, path, &backend_id_tmp);

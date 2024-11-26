@@ -90,7 +90,8 @@ struct cbd_transport {
 	struct mutex lock;
 	struct mutex adm_lock;
 
-	struct cbd_transport_info *transport_info;
+	struct cbd_transport_info *transport_info_addr;
+	struct cbd_transport_info transport_info;
 
 	struct cbd_host *host;
 	struct list_head backends;
@@ -164,7 +165,7 @@ void cbdt_flush(struct cbd_transport *cbdt, void *pos, u32 size);
 
 static inline bool cbdt_is_single_host(struct cbd_transport *cbdt)
 {
-	return (cbdt->transport_info->host_num == 1);
+	return (cbdt->transport_info.host_num == 1);
 }
 
 #endif /* _CBD_TRANSPORT_H */

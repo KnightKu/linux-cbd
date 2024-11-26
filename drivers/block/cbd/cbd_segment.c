@@ -389,7 +389,7 @@ int cbds_map_pages(struct cbd_segment *segment,
 		segment = pos.segment;
 
 		u64 transport_off = segment->data -
-					(void *)cbdt->transport_info + pos.off;
+					(void *)cbdt->transport_info_addr + pos.off;
 
 		page = cbdt_page(cbdt, transport_off, &page_off);
 

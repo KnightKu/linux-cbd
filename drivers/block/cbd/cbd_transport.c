@@ -28,7 +28,7 @@ static int cbd_##OBJ##s_init(struct cbd_transport *cbdt)			\
 	int ret;								\
 										\
 	u32 memsize = struct_size(devs, OBJ##_devs,				\
-			cbdt->transport_info->OBJ##_num);			\
+			cbdt->transport_info.OBJ##_num);			\
 	devs = kvzalloc(memsize, GFP_KERNEL);					\
 	if (!devs) {								\
 		return -ENOMEM;							\
@@ -45,7 +45,7 @@ static int cbd_##OBJ##s_init(struct cbd_transport *cbdt)			\
 		goto devs_free;							\
 	}									\
 										\
-	for (i = 0; i < cbdt->transport_info->OBJ##_num; i++) {			\
+	for (i = 0; i < cbdt->transport_info.OBJ##_num; i++) {			\
 		cbd_dev = &devs->OBJ##_devs[i];					\
 		dev = &cbd_dev->dev;						\
 										\
@@ -86,7 +86,7 @@ static void cbd_##OBJ##s_exit(struct cbd_transport *cbdt)			\
 	if (!devs)								\
 		return;								\
 										\
-	for (i = 0; i < cbdt->transport_info->OBJ##_num; i++) {			\
+	for (i = 0; i < cbdt->transport_info.OBJ##_num; i++) {			\
 		struct cbd_##OBJ##_device *cbd_dev = &devs->OBJ##_devs[i];	\
 		dev = &cbd_dev->dev;						\
 										\
@@ -104,8 +104,8 @@ static void cbd_##OBJ##s_exit(struct cbd_transport *cbdt)			\
 static inline struct cbd_##OBJ##_info						\
 *__get_##OBJ##_info(struct cbd_transport *cbdt, u32 id)				\
 {										\
-	struct cbd_transport_info *info = cbdt->transport_info;			\
-	void *start = cbdt->transport_info;					\
+	struct cbd_transport_info *info = &cbdt->transport_info;		\
+	void *start = cbdt->transport_info_addr;				\
 										\
 	BUG_ON(id >= info->OBJ##_num);						\
 										\
@@ -128,7 +128,7 @@ struct cbd_##OBJ##_info								\
 										\
 int cbdt_get_empty_##OBJ##_id(struct cbd_transport *cbdt, u32 *id)		\
 {										\
-	struct cbd_transport_info *info = cbdt->transport_info;			\
+	struct cbd_transport_info *info = &cbdt->transport_info;		\
 	struct cbd_##OBJ##_info *_info, *latest;				\
 	int ret = 0;								\
 	int i;									\
@@ -350,9 +350,9 @@ static int parse_adm_options(struct cbd_transport *cbdt,
 				goto out;
 			}
 
-			if (token >= cbdt->transport_info->backend_num) {
+			if (token >= cbdt->transport_info.backend_num) {
 				cbdt_err(cbdt, "invalid backend_id: %u, larger than backend_num %u\n",
-						token, cbdt->transport_info->backend_num);
+						token, cbdt->transport_info.backend_num);
 				ret = -EINVAL;
 				goto out;
 			}
@@ -379,9 +379,9 @@ static int parse_adm_options(struct cbd_transport *cbdt,
 				goto out;
 			}
 
-			if (token >= cbdt->transport_info->blkdev_num) {
+			if (token >= cbdt->transport_info.blkdev_num) {
 				cbdt_err(cbdt, "invalid dev_id: %u, larger than blkdev_num %u\n",
-						token, cbdt->transport_info->blkdev_num);
+						token, cbdt->transport_info.blkdev_num);
 				ret = -EINVAL;
 				goto out;
 			}
@@ -407,9 +407,9 @@ static int parse_adm_options(struct cbd_transport *cbdt,
 				goto out;
 			}
 
-			if (token >= cbdt->transport_info->host_num) {
+			if (token >= cbdt->transport_info.host_num) {
 				cbdt_err(cbdt, "invalid host_id: %u, larger than max %u\n",
-						token, cbdt->transport_info->host_num);
+						token, cbdt->transport_info.host_num);
 				ret = -EINVAL;
 				goto out;
 			}
@@ -488,7 +488,7 @@ static bool hosts_stopped(struct cbd_transport *cbdt)
  */
 static int format_validate(struct cbd_transport *cbdt, bool force)
 {
-	struct cbd_transport_info *info = cbdt->transport_info;
+	struct cbd_transport_info *info = &cbdt->transport_info;
 	u64 transport_dev_size;
 	u64 magic;
 
@@ -528,14 +528,15 @@ static int format_validate(struct cbd_transport *cbdt, bool force)
  */
 static void format_transport_info(struct cbd_transport *cbdt)
 {
-	struct cbd_transport_info *info = cbdt->transport_info;
+	struct cbd_transport_info *info = &cbdt->transport_info;
 	u64 transport_dev_size;
 	u32 seg_size;
 	u32 nr_segs;
 	u16 flags = 0;
 
-	cbdt_zero_range(cbdt, info, sizeof(struct cbd_transport_info));
+	memset(info, 0, sizeof(struct cbd_transport_info));
 
+	info->magic = cpu_to_le64(CBD_TRANSPORT_MAGIC);
 	info->version = cpu_to_le16(CBD_TRANSPORT_VERSION);
 
 #if defined(__BYTE_ORDER) ? (__BIG_ENDIAN == __BYTE_ORDER) : defined(__BIG_ENDIAN)
@@ -584,15 +585,14 @@ static void format_transport_info(struct cbd_transport *cbdt)
 	info->segment_size = CBDT_SEG_SIZE;
 	info->segment_num = nr_segs;
 
-	/* set ->magic at last */
-	info->magic = cpu_to_le64(CBD_TRANSPORT_MAGIC);
+	memcpy_flushcache(cbdt->transport_info_addr, info, sizeof(struct cbd_transport_info));
 }
 
 static void segments_format(struct cbd_transport *cbdt)
 {
 	u32 i;
 
-	for (i = 0; i < cbdt->transport_info->segment_num; i++)
+	for (i = 0; i < cbdt->transport_info.segment_num; i++)
 		cbdt_segment_info_clear(cbdt, i);
 }
 
@@ -611,7 +611,7 @@ static void segments_format(struct cbd_transport *cbdt)
  */
 static int cbd_transport_format(struct cbd_transport *cbdt, bool force)
 {
-	struct cbd_transport_info *info = cbdt->transport_info;
+	struct cbd_transport_info *info = &cbdt->transport_info;
 	int ret;
 
 	ret = format_validate(cbdt, force);
@@ -620,7 +620,7 @@ static int cbd_transport_format(struct cbd_transport *cbdt, bool force)
 
 	format_transport_info(cbdt);
 
-	cbdt_zero_range(cbdt, (void *)info + info->host_area_off,
+	cbdt_zero_range(cbdt, (void *)cbdt->transport_info_addr + info->host_area_off,
 			     info->segment_area_off - info->host_area_off);
 
 	segments_format(cbdt);
@@ -679,7 +679,7 @@ static ssize_t adm_store(struct device *dev,
 
 		if (opts.backend.cache_size_M > 0)
 			cache_segs = DIV_ROUND_UP(opts.backend.cache_size_M,
-					cbdt->transport_info->segment_size / CBD_MB);
+					cbdt->transport_info.segment_size / CBD_MB);
 
 		ret = cbd_backend_start(cbdt, opts.backend.path, opts.backend_id, opts.backend.handlers, cache_segs);
 		break;
@@ -724,12 +724,8 @@ static DEVICE_ATTR_WO(adm);
 
 static ssize_t __transport_info(struct cbd_transport *cbdt, char *buf)
 {
-	struct cbd_transport_info *info = cbdt->transport_info;
+	struct cbd_transport_info *info = &cbdt->transport_info;
 	ssize_t ret;
-
-	mutex_lock(&cbdt->lock);
-	info = cbdt->transport_info;
-	mutex_unlock(&cbdt->lock);
 
 	ret = sprintf(buf, "magic: 0x%llx\n"
 			"version: %u\n"
@@ -844,13 +840,13 @@ static int transport_info_validate(struct cbd_transport *cbdt)
 {
 	u16 flags;
 
-	if (le64_to_cpu(cbdt->transport_info->magic) != CBD_TRANSPORT_MAGIC) {
+	if (le64_to_cpu(cbdt->transport_info.magic) != CBD_TRANSPORT_MAGIC) {
 		cbdt_err(cbdt, "unexpected magic: %llx\n",
-				le64_to_cpu(cbdt->transport_info->magic));
+				le64_to_cpu(cbdt->transport_info.magic));
 		return -EINVAL;
 	}
 
-	flags = le16_to_cpu(cbdt->transport_info->flags);
+	flags = le16_to_cpu(cbdt->transport_info.flags);
 
 #if defined(__BYTE_ORDER) ? (__BIG_ENDIAN == __BYTE_ORDER) : defined(__BIG_ENDIAN)
 	/* Ensure transport matches the system's endianness */
@@ -976,19 +972,27 @@ static int transport_dax_init(struct cbd_transport *cbdt, char *path)
 	id = dax_read_lock();
 	access_size = dax_direct_access(dax_dev, 0, 1, DAX_ACCESS, &kaddr, NULL);
 	if (access_size != 1) {
-		dax_read_unlock(id);
 		ret = -EINVAL;
-		goto dax_put;
+		goto unlock;
 	}
 
 	cbdt->bdev_file = bdev_file;
 	cbdt->dax_dev = dax_dev;
-	cbdt->transport_info = (struct cbd_transport_info *)kaddr;
+	cbdt->transport_info_addr = (struct cbd_transport_info *)kaddr;
+	cbdt_err(cbdt, "transport_info_addr: %p\n", cbdt->transport_info_addr);
+	ret = copy_mc_to_kernel(&cbdt->transport_info, cbdt->transport_info_addr, sizeof(struct cbd_transport_info));
+	if (ret) {
+		cbdt_err(cbdt, "failed to read transport_info.\n");
+		ret = -EIO;
+		goto unlock;
+	}
+
 	dax_read_unlock(id);
 
 	return 0;
 
-dax_put:
+unlock:
+	dax_read_unlock(id);
 	fs_put_dax(dax_dev, cbdt);
 fput:
 	fput(bdev_file);
