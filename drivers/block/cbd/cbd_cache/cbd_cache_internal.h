@@ -575,7 +575,7 @@ static inline int cache_pos_decode(struct cbd_cache *cache,
 {
 	struct cbd_cache_pos_onmedia *latest;
 
-	latest = cbd_meta_find_latest(&pos_onmedia->header, sizeof(struct cbd_cache_pos_onmedia), NULL);
+	latest = cbd_meta_find_latest(&pos_onmedia->header, sizeof(struct cbd_cache_pos_onmedia));
 	if (!latest)
 		return -EIO;
 

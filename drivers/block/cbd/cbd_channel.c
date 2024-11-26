@@ -64,7 +64,7 @@ static int channel_info_load(struct cbd_channel *channel)
 
 	mutex_lock(&channel->info_lock);
 	channel_info = (struct cbd_channel_seg_info *)cbdt_segment_info_read(channel->cbdt,
-							channel->seg_id, &channel->info_index);
+							channel->seg_id);
 	if (!channel_info) {
 		cbd_channel_err(channel, "can't read info from segment id: %u\n",
 				channel->seg_id);
@@ -82,8 +82,7 @@ static void channel_info_write(struct cbd_channel *channel)
 {
 	mutex_lock(&channel->info_lock);
 	cbdt_segment_info_write(channel->cbdt, &channel->channel_info, sizeof(struct cbd_channel_seg_info),
-				channel->seg_id, channel->info_index);
-	channel->info_index = (channel->info_index + 1) % CBDT_META_INDEX_MAX;
+				channel->seg_id);
 	mutex_unlock(&channel->info_lock);
 }
 

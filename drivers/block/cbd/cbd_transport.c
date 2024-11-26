@@ -138,8 +138,7 @@ again:										\
 	for (i = cbdt->OBJ##_hint; i < info->OBJ##_num; i++) {			\
 		_info = __get_##OBJ##_info(cbdt, i);				\
 		latest = cbd_meta_find_latest(&_info->meta_header,		\
-					      OBJ_SIZE,				\
-					      NULL);				\
+					      OBJ_SIZE);			\
 		if (!latest || latest->state == cbd_##OBJ##_state_none) {	\
 			*id = i;						\
 			goto out;						\
@@ -161,16 +160,14 @@ out:										\
 }										\
 										\
 struct cbd_##OBJ##_info *cbdt_##OBJ##_info_read(struct cbd_transport *cbdt,	\
-						u32 id,				\
-						u32 *info_index)		\
+						u32 id)				\
 {										\
 	struct cbd_##OBJ##_info *info, *latest = NULL;				\
 										\
 	info = cbdt_get_##OBJ##_info(cbdt, id);					\
 										\
 	latest = cbd_meta_find_latest(&info->meta_header,			\
-				      OBJ_SIZE,					\
-				      info_index);				\
+				      OBJ_SIZE);				\
 	if (!latest)								\
 		return NULL;							\
 										\
@@ -180,8 +177,7 @@ struct cbd_##OBJ##_info *cbdt_##OBJ##_info_read(struct cbd_transport *cbdt,	\
 void cbdt_##OBJ##_info_write(struct cbd_transport *cbdt,			\
 				    void *data,					\
 				    u32 data_size,				\
-				    u32 id,					\
-				    u32 info_index)				\
+				    u32 id)					\
 {										\
 	struct cbd_##OBJ##_info *info;						\
 	struct cbd_meta_header *meta;						\
@@ -192,8 +188,8 @@ void cbdt_##OBJ##_info_write(struct cbd_transport *cbdt,			\
 	meta->seq++;								\
 										\
 	info = __get_##OBJ##_info(cbdt, id);					\
+	info = cbd_meta_find_oldest(&info->meta_header, OBJ_SIZE);		\
 										\
-	info = (void *)info + (info_index * OBJ_SIZE);				\
 	memcpy_flushcache(info, data, data_size);				\
 	info->meta_header.crc = cbd_meta_crc(&info->meta_header, OBJ_SIZE);	\
 	mutex_unlock(&cbdt->lock);						\

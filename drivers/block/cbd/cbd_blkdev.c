@@ -10,7 +10,7 @@ static ssize_t backend_id_show(struct device *dev,
 	struct cbd_blkdev_info *blkdev_info;
 
 	blkdev_dev = container_of(dev, struct cbd_blkdev_device, dev);
-	blkdev_info = cbdt_blkdev_info_read(blkdev_dev->cbdt, blkdev_dev->id, NULL);
+	blkdev_info = cbdt_blkdev_info_read(blkdev_dev->cbdt, blkdev_dev->id);
 	if (!blkdev_info)
 		return 0;
 
@@ -29,7 +29,7 @@ static ssize_t host_id_show(struct device *dev,
 	struct cbd_blkdev_info *blkdev_info;
 
 	blkdev_dev = container_of(dev, struct cbd_blkdev_device, dev);
-	blkdev_info = cbdt_blkdev_info_read(blkdev_dev->cbdt, blkdev_dev->id, NULL);
+	blkdev_info = cbdt_blkdev_info_read(blkdev_dev->cbdt, blkdev_dev->id);
 	if (!blkdev_info)
 		return 0;
 
@@ -48,7 +48,7 @@ static ssize_t mapped_id_show(struct device *dev,
 	struct cbd_blkdev_info *blkdev_info;
 
 	blkdev_dev = container_of(dev, struct cbd_blkdev_device, dev);
-	blkdev_info = cbdt_blkdev_info_read(blkdev_dev->cbdt, blkdev_dev->id, NULL);
+	blkdev_info = cbdt_blkdev_info_read(blkdev_dev->cbdt, blkdev_dev->id);
 	if (!blkdev_info)
 		return 0;
 
@@ -65,8 +65,7 @@ static void blkdev_info_write(struct cbd_blkdev *blkdev)
 	blkdev->blkdev_info.alive_ts = ktime_get_real();
 	cbdt_blkdev_info_write(blkdev->cbdt, &blkdev->blkdev_info,
 			       sizeof(struct cbd_blkdev_info),
-			       blkdev->blkdev_id, blkdev->info_index);
-	blkdev->info_index = (blkdev->info_index + 1) % CBDT_META_INDEX_MAX;
+			       blkdev->blkdev_id);
 	mutex_unlock(&blkdev->info_lock);
 }
 
@@ -551,7 +550,7 @@ int cbd_blkdev_start(struct cbd_transport *cbdt, u32 backend_id, u32 queues)
 	struct cbd_backend_info *backend_info;
 	int ret;
 
-	backend_info = cbdt_backend_info_read(cbdt, backend_id, NULL);
+	backend_info = cbdt_backend_info_read(cbdt, backend_id);
 	ret = blkdev_start_validate(cbdt, backend_info, backend_id, &queues);
 	if (ret)
 		return ret;
@@ -627,7 +626,7 @@ int cbd_blkdev_clear(struct cbd_transport *cbdt, u32 devid)
 {
 	struct cbd_blkdev_info *blkdev_info;
 
-	blkdev_info = cbdt_blkdev_info_read(cbdt, devid, NULL);
+	blkdev_info = cbdt_blkdev_info_read(cbdt, devid);
 	if (!blkdev_info) {
 		cbdt_err(cbdt, "all blkdev_info in blkdev_id: %u are corrupted.\n", devid);
 		return -EINVAL;

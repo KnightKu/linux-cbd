@@ -360,14 +360,13 @@ static inline bool cbd_meta_seq_after(u8 seq1, u8 seq2)
  * cbd_meta_find_latest - Find the latest valid metadata.
  * @header: Pointer to the metadata header.
  * @meta_size: Size of each metadata block.
- * @index: Optional pointer to store the index of the latest metadata.
  *
  * Finds the latest valid metadata by checking sequence numbers. If a
  * valid entry with the highest sequence number is found, its pointer
  * is returned. Returns NULL if no valid metadata is found.
  */
 static inline void *cbd_meta_find_latest(struct cbd_meta_header *header,
-					 u32 meta_size, u32 *index)
+					 u32 meta_size)
 {
 	struct cbd_meta_header *meta, *latest = NULL;
 	u32 i;
@@ -382,8 +381,6 @@ static inline void *cbd_meta_find_latest(struct cbd_meta_header *header,
 		/* Update latest if a more recent sequence is found */
 		if (!latest || cbd_meta_seq_after(meta->seq, latest->seq)) {
 			latest = meta;
-			if (index)
-				*index = i;
 		}
 	}
 
@@ -435,7 +432,7 @@ static inline u32 cbd_meta_get_next_seq(struct cbd_meta_header *header,
 {
 	struct cbd_meta_header *latest;
 
-	latest = cbd_meta_find_latest(header, meta_size, NULL);
+	latest = cbd_meta_find_latest(header, meta_size);
 	if (!latest)
 		return 0;
 
@@ -473,7 +470,7 @@ static ssize_t alive_show(struct device *dev,						\
 	struct cbd_##OBJ##_info *info;							\
 											\
 	_dev = container_of(dev, struct cbd_##OBJ##_device, dev);			\
-	info = cbdt_##OBJ##_info_read(_dev->cbdt, _dev->id, NULL);			\
+	info = cbdt_##OBJ##_info_read(_dev->cbdt, _dev->id);				\
 	if (!info)									\
 		goto out;								\
 											\

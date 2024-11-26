@@ -10,9 +10,7 @@ static void cache_seg_info_write(struct cbd_cache_segment *cache_seg)
 {
 	mutex_lock(&cache_seg->info_lock);
 	cbdt_segment_info_write(cache_seg->cache->cbdt, &cache_seg->cache_seg_info,
-				sizeof(struct cbd_cache_seg_info), cache_seg->segment.seg_id,
-				cache_seg->info_index);
-	cache_seg->info_index = (cache_seg->info_index + 1) % CBDT_META_INDEX_MAX;
+				sizeof(struct cbd_cache_seg_info), cache_seg->segment.seg_id);
 	mutex_unlock(&cache_seg->info_lock);
 }
 
@@ -29,8 +27,7 @@ static int cache_seg_info_load(struct cbd_cache_segment *cache_seg)
 
 	mutex_lock(&cache_seg->info_lock);
 	cache_seg_info = cbdt_segment_info_read(cache_seg->cache->cbdt,
-						cache_seg->segment.seg_id,
-						&cache_seg->info_index);
+						cache_seg->segment.seg_id);
 	if (!cache_seg_info) {
 		cbd_cache_err(cache_seg->cache, "can't read segment info of segment: %u\n",
 			      cache_seg->segment.seg_id);
@@ -58,8 +55,7 @@ static void cache_seg_ctrl_load(struct cbd_cache_segment *cache_seg)
 
 	mutex_lock(&cache_seg->ctrl_lock);
 	cache_seg_gen = cbd_meta_find_latest(&cache_seg_ctrl->gen->header,
-					     sizeof(struct cbd_cache_seg_gen),
-					     NULL);
+					     sizeof(struct cbd_cache_seg_gen));
 	if (!cache_seg_gen) {
 		cache_seg->gen = 0;
 		goto out;
@@ -172,7 +168,6 @@ int cache_seg_init(struct cbd_cache *cache, u32 seg_id, u32 cache_seg_id,
 	cache_seg->cache_seg_id = cache_seg_id;
 	spin_lock_init(&cache_seg->gen_lock);
 	atomic_set(&cache_seg->refs, 0);
-	cache_seg->info_index = 0;
 	mutex_init(&cache_seg->info_lock);
 	mutex_init(&cache_seg->ctrl_lock);
 

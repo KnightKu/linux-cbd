@@ -12,7 +12,7 @@ static ssize_t hostname_show(struct device *dev,
 	struct cbd_host_info *host_info;
 
 	host_dev = container_of(dev, struct cbd_host_device, dev);
-	host_info = cbdt_host_info_read(host_dev->cbdt, host_dev->id, NULL);
+	host_info = cbdt_host_info_read(host_dev->cbdt, host_dev->id);
 	if (!host_info)
 		return 0;
 
@@ -65,8 +65,7 @@ static void host_info_write(struct cbd_host *host)
 	mutex_lock(&host->info_lock);
 	host->host_info.alive_ts = ktime_get_real();
 	cbdt_host_info_write(host->cbdt, &host->host_info, sizeof(struct cbd_host_info),
-			     host->host_id, host->info_index);
-	host->info_index = (host->info_index + 1) % CBDT_META_INDEX_MAX;
+			     host->host_id);
 	mutex_unlock(&host->info_lock);
 }
 
@@ -144,7 +143,7 @@ host_id_found:
 		return -EINVAL;
 	}
 
-	host_info = cbdt_host_info_read(cbdt, *host_id, NULL);
+	host_info = cbdt_host_info_read(cbdt, *host_id);
 	if (host_info && cbd_host_info_is_alive(host_info)) {
 		pr_err("host id %u is still alive\n", *host_id);
 		return -EBUSY;
@@ -195,7 +194,6 @@ int cbd_host_register(struct cbd_transport *cbdt, char *hostname, u32 host_id)
 
 	host->cbdt = cbdt;
 	host->host_id = host_id;
-	host->info_index = 0;
 	mutex_init(&host->info_lock);
 	INIT_DELAYED_WORK(&host->hb_work, host_hb_workfn);
 

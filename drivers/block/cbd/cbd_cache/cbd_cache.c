@@ -557,7 +557,7 @@ static void __cache_info_load(struct cbd_transport *cbdt,
 {
 	struct cbd_backend_info *backend_info;
 
-	backend_info = cbdt_backend_info_read(cbdt, cache_id, NULL);
+	backend_info = cbdt_backend_info_read(cbdt, cache_id);
 	memcpy(cache_info, &backend_info->cache_info, sizeof(struct cbd_cache_info));
 }
 

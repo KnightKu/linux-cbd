@@ -182,7 +182,7 @@ static inline struct cbdc_mgmt_cmd *__mgmt_latest_cmd(struct cbd_channel_ctrl *c
 	struct cbd_meta_header *meta_latest;
 
 	meta_latest = cbd_meta_find_latest(&channel_ctrl->mgmt_cmd->header,
-					   sizeof(struct cbdc_mgmt_cmd), NULL);
+					   sizeof(struct cbdc_mgmt_cmd));
 	if (!meta_latest)
 		return NULL;
 
@@ -204,7 +204,7 @@ static inline struct cbdc_mgmt_ret *__mgmt_latest_ret(struct cbd_channel_ctrl *c
 	struct cbd_meta_header *meta_latest;
 
 	meta_latest = cbd_meta_find_latest(&channel_ctrl->mgmt_ret->header,
-					   sizeof(struct cbdc_mgmt_ret), NULL);
+					   sizeof(struct cbdc_mgmt_ret));
 	if (!meta_latest)
 		return NULL;
 
@@ -344,7 +344,6 @@ struct cbd_channel {
 
 	struct cbd_channel_seg_info	channel_info;
 	struct mutex			info_lock;
-	u32				info_index;
 
 	struct cbd_transport		*cbdt;
 

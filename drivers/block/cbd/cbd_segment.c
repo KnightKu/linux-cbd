@@ -29,7 +29,7 @@ static ssize_t detail_show(struct device *dev,
 	segment_dev = container_of(dev, struct cbd_segment_device, dev);
 
 	/* Read segment info, returns NULL if info is not available */
-	segment_info = cbdt_segment_info_read(segment_dev->cbdt, segment_dev->id, NULL);
+	segment_info = cbdt_segment_info_read(segment_dev->cbdt, segment_dev->id);
 	if (!segment_info)
 		return 0;
 
@@ -69,7 +69,7 @@ static ssize_t type_show(struct device *dev,
 	segment_dev = container_of(dev, struct cbd_segment_device, dev);
 
 	/* Read segment info, returns NULL if info is not available */
-	segment_info = cbdt_segment_info_read(segment_dev->cbdt, segment_dev->id, NULL);
+	segment_info = cbdt_segment_info_read(segment_dev->cbdt, segment_dev->id);
 	if (!segment_info)
 		return 0;
 

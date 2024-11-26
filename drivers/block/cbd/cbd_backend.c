@@ -18,7 +18,7 @@ static ssize_t host_id_show(struct device *dev,
 
 	backend = container_of(dev, struct cbd_backend_device, dev);
 
-	latest_info = cbdt_backend_info_read(backend->cbdt, backend->id, NULL);
+	latest_info = cbdt_backend_info_read(backend->cbdt, backend->id);
 	if (!latest_info || latest_info->state == cbd_backend_state_none)
 		return 0;
 
@@ -35,7 +35,7 @@ static ssize_t path_show(struct device *dev,
 
 	backend = container_of(dev, struct cbd_backend_device, dev);
 
-	latest_info = cbdt_backend_info_read(backend->cbdt, backend->id, NULL);
+	latest_info = cbdt_backend_info_read(backend->cbdt, backend->id);
 	if (!latest_info || latest_info->state == cbd_backend_state_none)
 		return 0;
 
@@ -53,7 +53,7 @@ static ssize_t cache_segs_show(struct device *dev,
 
 	backend = container_of(dev, struct cbd_backend_device, dev);
 
-	latest_info = cbdt_backend_info_read(backend->cbdt, backend->id, NULL);
+	latest_info = cbdt_backend_info_read(backend->cbdt, backend->id);
 	if (!latest_info || latest_info->state == cbd_backend_state_none)
 		return 0;
 
@@ -79,7 +79,7 @@ static ssize_t gc_percent_show(struct device *dev,
 
 	backend = container_of(dev, struct cbd_backend_device, dev);
 
-	latest_info = cbdt_backend_info_read(backend->cbdt, backend->id, NULL);
+	latest_info = cbdt_backend_info_read(backend->cbdt, backend->id);
 	if (!latest_info || latest_info->state == cbd_backend_state_none)
 		return 0;
 
@@ -562,8 +562,7 @@ static void __backend_info_write(struct cbd_backend *cbdb)
 {
 	cbdb->backend_info.alive_ts = ktime_get_real();
 	cbdt_backend_info_write(cbdb->cbdt, &cbdb->backend_info, sizeof(struct cbd_backend_info),
-				cbdb->backend_id, cbdb->backend_info_index);
-	cbdb->backend_info_index = (cbdb->backend_info_index + 1) % CBDT_META_INDEX_MAX;
+				cbdb->backend_id);
 }
 
 void cbd_backend_info_write(struct cbd_backend *cbdb)
@@ -594,7 +593,7 @@ static int cbd_backend_info_load(struct cbd_backend *cbdb, u32 backend_id)
 	int ret = 0;
 
 	mutex_lock(&cbdb->info_lock);
-	backend_info = cbdt_backend_info_read(cbdb->cbdt, backend_id, &cbdb->backend_info_index);
+	backend_info = cbdt_backend_info_read(cbdb->cbdt, backend_id);
 	if (!backend_info) {
 		cbdt_err(cbdb->cbdt, "can't read info from backend id %u.\n",
 				cbdb->backend_id);
@@ -908,7 +907,7 @@ int cbd_backend_clear(struct cbd_transport *cbdt, u32 backend_id)
 {
 	struct cbd_backend_info *backend_info;
 
-	backend_info = cbdt_backend_info_read(cbdt, backend_id, NULL);
+	backend_info = cbdt_backend_info_read(cbdt, backend_id);
 	if (!backend_info) {
 		cbdt_err(cbdt, "all backend_info in backend_id: %u are corrupted.\n", backend_id);
 		return -EINVAL;

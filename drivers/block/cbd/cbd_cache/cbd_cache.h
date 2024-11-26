@@ -65,7 +65,6 @@ struct cbd_cache_segment {
 
 	/* Segment info, updated only by the owner backend */
 	struct cbd_cache_seg_info cache_seg_info;
-	u32                    info_index;
 	struct mutex           info_lock;
 
 	spinlock_t             gen_lock;

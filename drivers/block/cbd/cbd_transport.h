@@ -135,13 +135,11 @@ extern const struct device_type cbd_##OBJ##s_type;					\
 struct cbd_##OBJ##_info	*cbdt_get_##OBJ##_info(struct cbd_transport *cbdt, u32 id);	\
 int cbdt_get_empty_##OBJ##_id(struct cbd_transport *cbdt, u32 *id);			\
 struct cbd_##OBJ##_info *cbdt_##OBJ##_info_read(struct cbd_transport *cbdt,		\
-						u32 id,					\
-						u32 *info_index);			\
+						u32 id);				\
 void cbdt_##OBJ##_info_write(struct cbd_transport *cbdt,				\
 			     void *data,						\
 			     u32 data_size,						\
-			     u32 id,							\
-			     u32 info_index);						\
+			     u32 id);							\
 void cbdt_##OBJ##_info_clear(struct cbd_transport *cbdt, u32 id)
 
 CBDT_OBJ_DECLARE(host);
