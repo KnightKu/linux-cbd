@@ -15,14 +15,13 @@ enum cbd_host_state {
 
 struct cbd_host_info {
 	struct cbd_meta_header meta_header;
-	u32	crc;
-	u8	version;
-	u8	res;
-	u16	res2;
+	u8			state;
+	u8			res;
 
-	u8	state;
-	u64	alive_ts;
-	char	hostname[CBD_NAME_LEN];
+	u16			res1;
+	u32			res2;
+	u64			alive_ts;
+	char			hostname[CBD_NAME_LEN];
 };
 
 struct cbd_host {
