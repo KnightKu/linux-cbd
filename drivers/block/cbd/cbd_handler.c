@@ -262,7 +262,7 @@ static int handler_reset(struct cbd_handler *handler)
 	spin_unlock(&handler->submr_lock);
 
 	/* Send a success response for the reset command */
-	ret = cbdc_mgmt_cmd_ret_send(handler->channel_ctrl, cbdc_mgmt_cmd_ret_ok);
+	ret = cbdc_mgmt_cmd_ret_send(handler->channel_ctrl, CBDC_MGMT_CMD_RET_OK);
 	if (ret)
 		return ret;
 
@@ -299,15 +299,15 @@ static inline int channel_se_verify(struct cbd_handler *handler, struct cbd_se *
 
 static int handle_mgmt_cmd(struct cbd_handler *handler)
 {
-	enum cbdc_mgmt_cmd_op cmd_op;
+	u8 cmd_op;
 	int ret;
 
 	cmd_op = cbdc_mgmt_cmd_op_get(handler->channel_ctrl);
 	switch (cmd_op) {
-	case cbdc_mgmt_cmd_none:
+	case CBDC_MGMT_CMD_NONE:
 		ret = 0;
 		break;
-	case cbdc_mgmt_cmd_reset:
+	case CBDC_MGMT_CMD_RESET:
 		ret = handler_reset(handler);
 		break;
 	default:

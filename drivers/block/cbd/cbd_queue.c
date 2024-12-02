@@ -581,11 +581,11 @@ const struct blk_mq_ops cbd_mq_ops = {
  */
 static int queue_reset_channel(struct cbd_queue *cbdq)
 {
-	enum cbdc_mgmt_cmd_ret cmd_ret;
+	u8 cmd_ret;
 	u16 count = 0;
 	int ret;
 
-	ret = cbdc_mgmt_cmd_op_send(cbdq->channel_ctrl, cbdc_mgmt_cmd_reset);
+	ret = cbdc_mgmt_cmd_op_send(cbdq->channel_ctrl, CBDC_MGMT_CMD_RESET);
 	if (ret) {
 		cbd_queue_err(cbdq, "send reset mgmt cmd error: %d\n", ret);
 		return ret;
