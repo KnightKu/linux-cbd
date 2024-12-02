@@ -27,7 +27,7 @@ struct cbd_request {
 	u32			bio_off;
 	spinlock_t		lock; /* race between cache and complete_work to access bio */
 
-	enum cbd_op		op;
+	u8			op;
 	u64			req_tid;
 	struct list_head	inflight_reqs_node;
 
@@ -46,7 +46,7 @@ struct cbd_request {
 
 struct cbd_cache_req {
 	struct cbd_cache	*cache;
-	enum cbd_op		op;
+	u8			op;
 	struct work_struct	work;
 };
 

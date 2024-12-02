@@ -299,7 +299,7 @@ miss:
  * Note that this function does not allocate data space for the cbd_request. If data space
  * is required, it will be allocated later in the queue_req_channel_init function.
  */
-static void cbd_req_init(struct cbd_queue *cbdq, enum cbd_op op, struct request *rq)
+static void cbd_req_init(struct cbd_queue *cbdq, u8 op, struct request *rq)
 {
 	struct cbd_request *cbd_req = blk_mq_rq_to_pdu(rq);
 

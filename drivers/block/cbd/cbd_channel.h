@@ -16,11 +16,9 @@
 	cbdt_debug(channel->cbdt, "channel%d: " fmt,				\
 		 channel->seg_id, ##__VA_ARGS__)
 
-enum cbd_op {
-	CBD_OP_WRITE = 0,
-	CBD_OP_READ,
-	CBD_OP_FLUSH,
-};
+#define CBD_OP_WRITE		0
+#define CBD_OP_READ		1
+#define CBD_OP_FLUSH		2
 
 struct cbd_se {
 #ifdef CONFIG_CBD_CHANNEL_CRC
