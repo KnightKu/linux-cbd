@@ -719,7 +719,7 @@ void clean_fn(struct work_struct *work)
 		cache_tree = &cache->cache_trees[i];
 
 again:
-		if (cache->state == cbd_cache_state_stopping)
+		if (cache->state == CBD_CACHE_STATE_STOPPING)
 			return;
 
 		/* Delete up to CBD_CLEAN_KEYS_MAX keys in one iteration */

@@ -452,7 +452,7 @@ struct cbd_cache *cbd_cache_alloc(struct cbd_transport *cbdt,
 	cache->dev_size = opts->dev_size;
 	cache->cache_id = opts->cache_id;
 	cache->owner = opts->owner;
-	cache->state = cbd_cache_state_running;
+	cache->state = CBD_CACHE_STATE_RUNNING;
 
 	ret = cache_segs_init(cache, opts->new_cache);
 	if (ret)
@@ -502,7 +502,7 @@ free_cache:
  */
 void cbd_cache_destroy(struct cbd_cache *cache)
 {
-	cache->state = cbd_cache_state_stopping;
+	cache->state = CBD_CACHE_STATE_STOPPING;
 
 	flush_work(&cache->miss_read_end_work);
 	cache_flush(cache);

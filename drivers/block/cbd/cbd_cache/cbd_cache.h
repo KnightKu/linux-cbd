@@ -72,12 +72,9 @@ struct cbd_cache_segment {
 	struct mutex           ctrl_lock;
 };
 
-/* Cache states */
-enum cbd_cache_state {
-	cbd_cache_state_none = 0,
-	cbd_cache_state_running,
-	cbd_cache_state_stopping
-};
+#define CBD_CACHE_STATE_NONE		0
+#define CBD_CACHE_STATE_RUNNING		1
+#define CBD_CACHE_STATE_STOPPING	2
 
 /* CBD Cache main structure */
 struct cbd_cache {
