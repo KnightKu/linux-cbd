@@ -18,7 +18,7 @@
  * integrity mechanism allows consistent and reliable access to object information
  * within the CBD transport.
  */
-#define CBDT_OBJ(OBJ, OBJ_SIZE, OBJ_STRIDE)					\
+#define CBDT_OBJ(OBJ, OBJ_UPPER, OBJ_SIZE, OBJ_STRIDE)					\
 static int cbd_##OBJ##s_init(struct cbd_transport *cbdt)			\
 {										\
 	struct cbd_##OBJ##s_device *devs;					\
@@ -139,7 +139,7 @@ again:										\
 		_info = __get_##OBJ##_info(cbdt, i);				\
 		latest = cbd_meta_find_latest(&_info->meta_header,		\
 					      OBJ_SIZE);			\
-		if (!latest || latest->state == cbd_##OBJ##_state_none) {	\
+		if (!latest || latest->state == CBD_##OBJ_UPPER##_STATE_NONE) {	\
 			*id = i;						\
 			goto out;						\
 		}								\
@@ -205,10 +205,10 @@ void cbdt_##OBJ##_info_clear(struct cbd_transport *cbdt, u32 id)		\
 	mutex_unlock(&cbdt->lock);						\
 }
 
-CBDT_OBJ(host, CBDT_HOST_INFO_SIZE, CBDT_HOST_INFO_STRIDE);
-CBDT_OBJ(backend, CBDT_BACKEND_INFO_SIZE, CBDT_BACKEND_INFO_STRIDE);
-CBDT_OBJ(blkdev, CBDT_BLKDEV_INFO_SIZE, CBDT_BLKDEV_INFO_STRIDE);
-CBDT_OBJ(segment, CBDT_SEG_INFO_SIZE, CBDT_SEG_INFO_STRIDE);
+CBDT_OBJ(host, HOST, CBDT_HOST_INFO_SIZE, CBDT_HOST_INFO_STRIDE);
+CBDT_OBJ(backend, BACKEND, CBDT_BACKEND_INFO_SIZE, CBDT_BACKEND_INFO_STRIDE);
+CBDT_OBJ(blkdev, BLKDEV, CBDT_BLKDEV_INFO_SIZE, CBDT_BLKDEV_INFO_STRIDE);
+CBDT_OBJ(segment, SEGMENT, CBDT_SEG_INFO_SIZE, CBDT_SEG_INFO_STRIDE);
 
 static struct cbd_transport *cbd_transports[CBD_TRANSPORT_MAX];
 static DEFINE_IDA(cbd_transport_id_ida);

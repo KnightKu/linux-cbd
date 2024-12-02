@@ -19,11 +19,8 @@
 
 CBD_DEVICE(segment);
 
-/* Enumeration for CBD segment states */
-enum cbd_segment_state {
-	cbd_segment_state_none		= 0,	/* Segment is in a none (uninitialized) state */
-	cbd_segment_state_running,
-};
+#define CBD_SEGMENT_STATE_NONE		0
+#define CBD_SEGMENT_STATE_RUNNING	1
 
 /* Enumeration for segment types */
 enum cbd_seg_type {
@@ -79,7 +76,7 @@ struct cbd_seg_ops {
 /* Initialization options for CBD segments */
 struct cbds_init_options {
 	enum cbd_seg_type	type;
-	enum cbd_segment_state	state;
+	u8			state;
 	u32			seg_id;
 	u32			data_off;
 	struct cbd_seg_ops	*seg_ops;

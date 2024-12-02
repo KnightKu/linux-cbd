@@ -14,7 +14,7 @@ static ssize_t backend_id_show(struct device *dev,
 	if (!blkdev_info)
 		return 0;
 
-	if (blkdev_info->state == cbd_blkdev_state_none)
+	if (blkdev_info->state == CBD_BLKDEV_STATE_NONE)
 		return 0;
 
 	return sprintf(buf, "%u\n", blkdev_info->backend_id);
@@ -33,7 +33,7 @@ static ssize_t host_id_show(struct device *dev,
 	if (!blkdev_info)
 		return 0;
 
-	if (blkdev_info->state == cbd_blkdev_state_none)
+	if (blkdev_info->state == CBD_BLKDEV_STATE_NONE)
 		return 0;
 
 	return sprintf(buf, "%u\n", blkdev_info->host_id);
@@ -52,7 +52,7 @@ static ssize_t mapped_id_show(struct device *dev,
 	if (!blkdev_info)
 		return 0;
 
-	if (blkdev_info->state == cbd_blkdev_state_none)
+	if (blkdev_info->state == CBD_BLKDEV_STATE_NONE)
 		return 0;
 
 	return sprintf(buf, "%u\n", blkdev_info->mapped_id);
@@ -349,7 +349,7 @@ static int blkdev_start_validate(struct cbd_transport *cbdt, struct cbd_backend_
 	}
 
 	cbd_for_each_blkdev_info(cbdt, i, blkdev_info) {
-		if (!blkdev_info || blkdev_info->state != cbd_blkdev_state_running)
+		if (!blkdev_info || blkdev_info->state != CBD_BLKDEV_STATE_RUNNING)
 			continue;
 
 		if (blkdev_info->backend_id == backend_id)
@@ -507,7 +507,7 @@ static int blkdev_init(struct cbd_blkdev *cbd_blkdev, struct cbd_backend_info *b
 
 	cbd_blkdev->blkdev_info.backend_id = backend_id;
 	cbd_blkdev->blkdev_info.host_id = cbdt->host->host_id;
-	cbd_blkdev->blkdev_info.state = cbd_blkdev_state_running;
+	cbd_blkdev->blkdev_info.state = CBD_BLKDEV_STATE_RUNNING;
 
 	ret = cbd_blkdev_create_queues(cbd_blkdev, backend_info->handler_channels);
 	if (ret < 0)
@@ -637,7 +637,7 @@ int cbd_blkdev_clear(struct cbd_transport *cbdt, u32 devid)
 		return -EBUSY;
 	}
 
-	if (blkdev_info->state == cbd_blkdev_state_none)
+	if (blkdev_info->state == CBD_BLKDEV_STATE_NONE)
 		return 0;
 
 	cbdt_blkdev_info_clear(cbdt, devid);

@@ -16,7 +16,7 @@ static ssize_t hostname_show(struct device *dev,
 	if (!host_info)
 		return 0;
 
-	if (host_info->state == cbd_host_state_none)
+	if (host_info->state == CBD_HOST_STATE_NONE)
 		return 0;
 
 	return sprintf(buf, "%s\n", host_info->hostname);
@@ -197,7 +197,7 @@ int cbd_host_register(struct cbd_transport *cbdt, char *hostname, u32 host_id)
 	mutex_init(&host->info_lock);
 	INIT_DELAYED_WORK(&host->hb_work, host_hb_workfn);
 
-	host->host_info.state = cbd_host_state_running;
+	host->host_info.state = CBD_HOST_STATE_RUNNING;
 	memcpy(host->host_info.hostname, hostname, CBD_NAME_LEN);
 
 	cbdt->host = host;
@@ -214,7 +214,7 @@ static bool host_backends_stopped(struct cbd_transport *cbdt, u32 host_id)
 	u32 i;
 
 	cbd_for_each_backend_info(cbdt, i, backend_info) {
-		if (!backend_info || backend_info->state != cbd_backend_state_running)
+		if (!backend_info || backend_info->state != CBD_BACKEND_STATE_RUNNING)
 			continue;
 
 		if (backend_info->host_id == host_id) {
@@ -232,7 +232,7 @@ static bool host_blkdevs_stopped(struct cbd_transport *cbdt, u32 host_id)
 	int i;
 
 	cbd_for_each_blkdev_info(cbdt, i, blkdev_info) {
-		if (!blkdev_info || blkdev_info->state != cbd_blkdev_state_running)
+		if (!blkdev_info || blkdev_info->state != CBD_BLKDEV_STATE_RUNNING)
 			continue;
 
 		if (blkdev_info->host_id == host_id) {
@@ -277,7 +277,7 @@ int cbd_host_clear(struct cbd_transport *cbdt, u32 host_id)
 		return -EBUSY;
 	}
 
-	if (host_info->state == cbd_host_state_none)
+	if (host_info->state == CBD_HOST_STATE_NONE)
 		return 0;
 
 	if (!host_blkdevs_stopped(cbdt, host_id) ||

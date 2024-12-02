@@ -29,7 +29,7 @@ static ssize_t type_show(struct device *dev,
 	if (!segment_info)
 		return 0;
 
-	if (segment_info->state == cbd_segment_state_none)
+	if (segment_info->state == CBD_SEGMENT_STATE_NONE)
 		return 0;
 
 	return sprintf(buf, "%s\n", cbds_type_str(segment_info->type));

@@ -7,11 +7,8 @@
 
 CBD_DEVICE(host);
 
-enum cbd_host_state {
-	cbd_host_state_none	= 0,
-	cbd_host_state_running,
-	cbd_host_state_removing
-};
+#define CBD_HOST_STATE_NONE		0
+#define CBD_HOST_STATE_RUNNING		1
 
 struct cbd_host_info {
 	struct cbd_meta_header meta_header;

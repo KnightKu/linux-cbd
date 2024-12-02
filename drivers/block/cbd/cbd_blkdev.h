@@ -25,10 +25,8 @@
 /* cbd_blkdev */
 CBD_DEVICE(blkdev);
 
-enum cbd_blkdev_state {
-	cbd_blkdev_state_none	= 0,
-	cbd_blkdev_state_running,
-};
+#define CBD_BLKDEV_STATE_NONE		0
+#define CBD_BLKDEV_STATE_RUNNING	1
 
 struct cbd_blkdev_info {
 	struct cbd_meta_header meta_header;

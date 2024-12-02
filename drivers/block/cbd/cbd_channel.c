@@ -129,7 +129,7 @@ int cbd_channel_init(struct cbd_channel *channel, struct cbd_channel_init_option
 	if (init_opts->new_channel) {
 		/* Initialize new channel state */
 		channel->channel_info.seg_info.type = cbds_type_channel;
-		channel->channel_info.seg_info.state = cbd_segment_state_running;
+		channel->channel_info.seg_info.state = CBD_SEGMENT_STATE_RUNNING;
 		channel->channel_info.seg_info.flags = 0;
 		channel->channel_info.seg_info.backend_id = init_opts->backend_id;
 

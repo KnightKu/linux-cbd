@@ -19,7 +19,7 @@ static ssize_t host_id_show(struct device *dev,
 	backend = container_of(dev, struct cbd_backend_device, dev);
 
 	latest_info = cbdt_backend_info_read(backend->cbdt, backend->id);
-	if (!latest_info || latest_info->state == cbd_backend_state_none)
+	if (!latest_info || latest_info->state == CBD_BACKEND_STATE_NONE)
 		return 0;
 
 	return sprintf(buf, "%u\n", latest_info->host_id);
@@ -36,7 +36,7 @@ static ssize_t path_show(struct device *dev,
 	backend = container_of(dev, struct cbd_backend_device, dev);
 
 	latest_info = cbdt_backend_info_read(backend->cbdt, backend->id);
-	if (!latest_info || latest_info->state == cbd_backend_state_none)
+	if (!latest_info || latest_info->state == CBD_BACKEND_STATE_NONE)
 		return 0;
 
 	return sprintf(buf, "%s\n", latest_info->path);
@@ -54,7 +54,7 @@ static ssize_t cache_segs_show(struct device *dev,
 	backend = container_of(dev, struct cbd_backend_device, dev);
 
 	latest_info = cbdt_backend_info_read(backend->cbdt, backend->id);
-	if (!latest_info || latest_info->state == cbd_backend_state_none)
+	if (!latest_info || latest_info->state == CBD_BACKEND_STATE_NONE)
 		return 0;
 
 	return sprintf(buf, "%u\n", latest_info->cache_info.n_segs);
@@ -80,7 +80,7 @@ static ssize_t gc_percent_show(struct device *dev,
 	backend = container_of(dev, struct cbd_backend_device, dev);
 
 	latest_info = cbdt_backend_info_read(backend->cbdt, backend->id);
-	if (!latest_info || latest_info->state == cbd_backend_state_none)
+	if (!latest_info || latest_info->state == CBD_BACKEND_STATE_NONE)
 		return 0;
 
 	return sprintf(buf, "%u\n", latest_info->cache_info.gc_percent);
@@ -208,7 +208,7 @@ int cbdb_add_handler(struct cbd_backend *cbdb, struct cbd_handler *handler)
 	int ret = 0;
 
 	spin_lock(&cbdb->lock);
-	if (cbdb->backend_info.state == cbd_backend_state_stopping) {
+	if (cbdb->backend_info.state == CBD_BACKEND_STATE_STOPPING) {
 		ret = -EFAULT;
 		goto out;
 	}
@@ -525,7 +525,7 @@ static int cbd_backend_init(struct cbd_backend *cbdb, char *path, u32 backend_id
 			goto destroy_handlers;
 	}
 
-	cbdb->backend_info.state = cbd_backend_state_running;
+	cbdb->backend_info.state = CBD_BACKEND_STATE_RUNNING;
 	cbdt_add_backend(cbdt, cbdb);
 
 	return 0;
@@ -789,7 +789,7 @@ static bool backend_blkdevs_stopped(struct cbd_transport *cbdt, u32 backend_id)
 		if (!blkdev_info)
 			continue;
 
-		if (blkdev_info->state != cbd_blkdev_state_running)
+		if (blkdev_info->state != CBD_BLKDEV_STATE_RUNNING)
 			continue;
 
 		if (blkdev_info->backend_id == backend_id) {
@@ -827,12 +827,12 @@ int cbd_backend_stop(struct cbd_transport *cbdt, u32 backend_id)
 		return -EBUSY;
 
 	spin_lock(&cbdb->lock);
-	if (cbdb->backend_info.state == cbd_backend_state_stopping) {
+	if (cbdb->backend_info.state == CBD_BACKEND_STATE_STOPPING) {
 		spin_unlock(&cbdb->lock);
 		return -EBUSY;
 	}
 
-	cbdb->backend_info.state = cbd_backend_state_stopping;
+	cbdb->backend_info.state = CBD_BACKEND_STATE_STOPPING;
 	spin_unlock(&cbdb->lock);
 
 	cancel_delayed_work_sync(&cbdb->hb_work);
@@ -898,7 +898,7 @@ int cbd_backend_clear(struct cbd_transport *cbdt, u32 backend_id)
 		return -EBUSY;
 	}
 
-	if (backend_info->state == cbd_backend_state_none)
+	if (backend_info->state == CBD_BACKEND_STATE_NONE)
 		return 0;
 
 	if (!backend_blkdevs_stopped(cbdt, backend_id))

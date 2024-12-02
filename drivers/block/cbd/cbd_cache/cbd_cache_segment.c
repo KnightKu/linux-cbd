@@ -185,7 +185,7 @@ int cache_seg_init(struct cbd_cache *cache, u32 seg_id, u32 cache_seg_id,
 
 	if (new_cache) {
 		cache_seg->cache_seg_info.segment_info.type = cbds_type_cache;
-		cache_seg->cache_seg_info.segment_info.state = cbd_segment_state_running;
+		cache_seg->cache_seg_info.segment_info.state = CBD_SEGMENT_STATE_RUNNING;
 		cache_seg->cache_seg_info.segment_info.flags = 0;
 		cache_seg->cache_seg_info.segment_info.backend_id = cache->cache_id;
 

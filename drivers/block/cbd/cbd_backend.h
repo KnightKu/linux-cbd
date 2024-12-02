@@ -26,11 +26,9 @@ CBD_DEVICE(backend);
 
 extern const struct device_type cbd_cache_type;
 
-enum cbd_backend_state {
-	cbd_backend_state_none	= 0,
-	cbd_backend_state_running,
-	cbd_backend_state_stopping
-};
+#define CBD_BACKEND_STATE_NONE		0
+#define CBD_BACKEND_STATE_RUNNING	1
+#define CBD_BACKEND_STATE_STOPPING	2
 
 #define CBDB_BLKDEV_COUNT_MAX	1
 
