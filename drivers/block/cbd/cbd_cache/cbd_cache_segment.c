@@ -172,7 +172,7 @@ int cache_seg_init(struct cbd_cache *cache, u32 seg_id, u32 cache_seg_id,
 	mutex_init(&cache_seg->ctrl_lock);
 
 	/* init cbd_segment */
-	seg_options.type = cbds_type_cache;
+	seg_options.type = CBDS_TYPE_CACHE;
 	seg_options.data_off = CBDT_CACHE_SEG_CTRL_OFF + CBDT_CACHE_SEG_CTRL_SIZE;
 	seg_options.seg_ops = &cbd_cache_seg_ops;
 	seg_options.seg_id = seg_id;
@@ -184,7 +184,7 @@ int cache_seg_init(struct cbd_cache *cache, u32 seg_id, u32 cache_seg_id,
 		cache->cache_ctrl = (struct cbd_cache_ctrl *)cache_seg->cache_seg_ctrl;
 
 	if (new_cache) {
-		cache_seg->cache_seg_info.segment_info.type = cbds_type_cache;
+		cache_seg->cache_seg_info.segment_info.type = CBDS_TYPE_CACHE;
 		cache_seg->cache_seg_info.segment_info.state = CBD_SEGMENT_STATE_RUNNING;
 		cache_seg->cache_seg_info.segment_info.flags = 0;
 		cache_seg->cache_seg_info.segment_info.backend_id = cache->cache_id;

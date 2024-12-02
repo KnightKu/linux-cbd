@@ -22,24 +22,21 @@ CBD_DEVICE(segment);
 #define CBD_SEGMENT_STATE_NONE		0
 #define CBD_SEGMENT_STATE_RUNNING	1
 
-/* Enumeration for segment types */
-enum cbd_seg_type {
-	cbds_type_none = 0,		/* No specific segment type */
-	cbds_type_channel,		/* Segment type: channel */
-	cbds_type_cache			/* Segment type: cache */
-};
+#define CBDS_TYPE_NONE			0
+#define CBDS_TYPE_CHANNEL		1
+#define CBDS_TYPE_CACHE			2
 
 /**
  * cbds_type_str - Get string representation of segment type.
- * @type: The segment type enumeration.
+ * @type: The segment type
  *
  * Returns the string corresponding to the segment type.
  */
-static inline const char *cbds_type_str(enum cbd_seg_type type)
+static inline const char *cbds_type_str(u8 type)
 {
-	if (type == cbds_type_channel)
+	if (type == CBDS_TYPE_CHANNEL)
 		return "channel";
-	else if (type == cbds_type_cache)
+	else if (type == CBDS_TYPE_CACHE)
 		return "cache";
 
 	return "Unknown";
@@ -75,7 +72,7 @@ struct cbd_seg_ops {
 
 /* Initialization options for CBD segments */
 struct cbds_init_options {
-	enum cbd_seg_type	type;
+	u8			type;
 	u8			state;
 	u32			seg_id;
 	u32			data_off;
