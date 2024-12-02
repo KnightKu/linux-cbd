@@ -24,7 +24,6 @@
 /* Struct defining cache segment information */
 struct cbd_cache_seg_info {
 	struct cbd_segment_info segment_info;   /* First member */
-	u32 backend_id;
 };
 
 /* CBD Cache Information */

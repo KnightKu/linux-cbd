@@ -6,47 +6,6 @@
 #include "cbd_segment.h"
 
 /*
- * Show function for the "detail" attribute in a CBD segment device.
- *
- * This function retrieves and displays detailed information about the segment
- * if the segment exists and is in a valid state.
- *
- * @dev: Device structure pointer for the CBD segment device.
- * @attr: Device attribute structure pointer for the "detail" attribute.
- * @buf: Buffer to store the formatted segment details.
- *
- * Return: The number of bytes written to the buffer, or 0 if no details are available.
- */
-static ssize_t detail_show(struct device *dev,
-			   struct device_attribute *attr,
-			   char *buf)
-{
-	struct cbd_segment_device *segment_dev;
-	struct cbd_segment_info *segment_info;
-	detail_show_fn show_fn;
-
-	/* Retrieve the CBD segment device from the parent device */
-	segment_dev = container_of(dev, struct cbd_segment_device, dev);
-
-	/* Read segment info, returns NULL if info is not available */
-	segment_info = cbdt_segment_info_read(segment_dev->cbdt, segment_dev->id);
-	if (!segment_info)
-		return 0;
-
-	/* Exit if the segment state is none */
-	if (segment_info->state == cbd_segment_state_none)
-		return 0;
-
-	/* Get the appropriate function for showing segment details based on type */
-	show_fn = cbd_seg_get_detail_shower(segment_info->type);
-	if (!show_fn)
-		return 0;
-
-	/* Call the detail show function and return its output size */
-	return show_fn(segment_info, buf);
-}
-
-/*
  * Show function for the "type" attribute in a CBD segment device.
  *
  * This function retrieves and displays the type of the segment if the
@@ -65,27 +24,20 @@ static ssize_t type_show(struct device *dev,
 	struct cbd_segment_device *segment_dev;
 	struct cbd_segment_info *segment_info;
 
-	/* Retrieve the CBD segment device from the parent device */
 	segment_dev = container_of(dev, struct cbd_segment_device, dev);
-
-	/* Read segment info, returns NULL if info is not available */
 	segment_info = cbdt_segment_info_read(segment_dev->cbdt, segment_dev->id);
 	if (!segment_info)
 		return 0;
 
-	/* Exit if the segment state is none */
 	if (segment_info->state == cbd_segment_state_none)
 		return 0;
 
-	/* Format the segment type as a string and write it to the buffer */
 	return sprintf(buf, "%s\n", cbds_type_str(segment_info->type));
 }
 
-static DEVICE_ATTR_ADMIN_RO(detail);
 static DEVICE_ATTR_ADMIN_RO(type);
 
 static struct attribute *cbd_segment_attrs[] = {
-	&dev_attr_detail.attr,
 	&dev_attr_type.attr,
 	NULL
 };

@@ -25,15 +25,6 @@ int cbdc_map_pages(struct cbd_channel *channel, struct bio *bio, u32 off, u32 si
 	return cbds_map_pages(&channel->segment, bio, off, size);
 }
 
-ssize_t cbd_channel_seg_detail_show(struct cbd_segment_info *seg_info, char *buf)
-{
-	struct cbd_channel_seg_info *channel_info;
-
-	channel_info = (struct cbd_channel_seg_info *)seg_info;
-
-	return sprintf(buf, "backend id: %u\n", channel_info->backend_id);
-}
-
 /*
  * cbd_channel_seg_sanitize_pos - Sanitize position within a channel segment ring
  * @pos: Position structure within the segment to sanitize
@@ -114,28 +105,23 @@ int cbd_channel_init(struct cbd_channel *channel, struct cbd_channel_init_option
 	void *seg_addr;
 	int ret;
 
-	/* Set up channel information and segment details */
 	seg_options.seg_id = init_opts->seg_id;
 	seg_options.data_off = CBDC_DATA_OFF;
 	seg_options.seg_ops = &cbd_channel_seg_ops;
 
-	/* Initialize the segment with specified options */
 	cbd_segment_init(init_opts->cbdt, &channel->segment, &seg_options);
 
-	/* Initialize channel base properties */
 	channel->cbdt = init_opts->cbdt;
 	channel->seg_id = init_opts->seg_id;
 	channel->submr_size = rounddown(CBDC_SUBMR_SIZE, sizeof(struct cbd_se));
 	channel->compr_size = rounddown(CBDC_COMPR_SIZE, sizeof(struct cbd_ce));
 	channel->data_size = CBDC_DATA_SIZE;
 
-	/* Locate control, submission, and completion resources in shared memory */
 	seg_addr = cbd_segment_addr(&channel->segment);
 	channel->ctrl = seg_addr + CBDC_CTRL_OFF;
 	channel->submr = seg_addr + CBDC_SUBMR_OFF;
 	channel->compr = seg_addr + CBDC_COMPR_OFF;
 
-	/* Initialize locking mechanisms */
 	spin_lock_init(&channel->submr_lock);
 	spin_lock_init(&channel->compr_lock);
 	mutex_init(&channel->info_lock);
@@ -145,7 +131,7 @@ int cbd_channel_init(struct cbd_channel *channel, struct cbd_channel_init_option
 		channel->channel_info.seg_info.type = cbds_type_channel;
 		channel->channel_info.seg_info.state = cbd_segment_state_running;
 		channel->channel_info.seg_info.flags = 0;
-		channel->channel_info.backend_id = init_opts->backend_id;
+		channel->channel_info.seg_info.backend_id = init_opts->backend_id;
 
 		/* Persist new channel information */
 		channel_info_write(channel);

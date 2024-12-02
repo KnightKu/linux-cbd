@@ -848,38 +848,18 @@ int cbd_backend_stop(struct cbd_transport *cbdt, u32 backend_id)
  * backend_segs_clear - Clear segments associated with a specific backend.
  * @cbdt: Pointer to the cbd_transport structure.
  * @backend_id: ID of the backend whose segments are to be cleared.
- *
- * This function iterates through all segment information entries in the
- * cbd_transport. For each segment, it checks its type. If the segment is
- * of type channel and is associated with the specified backend, it calls
- * cbd_segment_clear to release it. Similarly, if the segment is of type
- * cache and is associated with the backend, it also clears that segment.
  */
 static void backend_segs_clear(struct cbd_transport *cbdt, u32 backend_id)
 {
 	struct cbd_segment_info *seg_info;
-	struct cbd_channel_seg_info *channel_info;
-	struct cbd_cache_seg_info *cache_seg_info;
 	u32 i;
 
 	cbd_for_each_segment_info(cbdt, i, seg_info) {
 		if (!seg_info)
 			continue;
 
-		if (seg_info->type == cbds_type_channel) {
-			channel_info = (struct cbd_channel_seg_info *)seg_info;
-			/* release the channels backend is using */
-			if (channel_info->backend_id == backend_id)
-				cbd_segment_clear(cbdt, i);
-		}
-
-		if (seg_info->type == cbds_type_cache) {
-			cache_seg_info = (struct cbd_cache_seg_info *)seg_info;
-
-			/* clear cache segments */
-			if (cache_seg_info->backend_id == backend_id)
-				cbd_segment_clear(cbdt, i);
-		}
+		if (seg_info->backend_id == backend_id)
+			cbd_segment_clear(cbdt, i);
 	}
 }
 

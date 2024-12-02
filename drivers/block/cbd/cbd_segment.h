@@ -55,6 +55,7 @@ struct cbd_segment_info {
 	u8			state;
 	u16			flags;
 	u32			next_seg;
+	u32			backend_id;
 };
 
 #define CBD_SEG_INFO_FLAGS_HAS_NEXT	(1 << 0) /* Flag indicating segment has a successor */
@@ -62,31 +63,6 @@ struct cbd_segment_info {
 static inline bool cbd_segment_info_has_next(struct cbd_segment_info *seg_info)
 {
 	return (seg_info->flags & CBD_SEG_INFO_FLAGS_HAS_NEXT);
-}
-
-typedef ssize_t (*detail_show_fn)(struct cbd_segment_info *seg_info, char *buf); /* Type for detail display function */
-
-/* Defined in cbd_channel.c - Shows details of a channel segment */
-ssize_t cbd_channel_seg_detail_show(struct cbd_segment_info *seg_info, char *buf);
-
-/* Defined in cbd_cache.c - Shows details of a cache segment */
-ssize_t cbd_cache_seg_detail_show(struct cbd_segment_info *seg_info, char *buf);
-
-/**
- * cbd_seg_get_detail_shower - Retrieve detail function based on segment type.
- * @type: Segment type enumeration.
- *
- * Returns the function pointer to the detail display function for a specific
- * segment type.
- */
-static inline detail_show_fn cbd_seg_get_detail_shower(enum cbd_seg_type type)
-{
-	if (type == cbds_type_channel)
-		return cbd_channel_seg_detail_show;
-	else if (type == cbds_type_cache)
-		return cbd_cache_seg_detail_show;
-
-	return NULL;
 }
 
 /* Structure defining position within a segment */

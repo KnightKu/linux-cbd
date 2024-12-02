@@ -574,24 +574,3 @@ void cache_info_load(struct cbd_cache *cache)
 {
 	__cache_info_load(cache->cbdt, cache->cache_info, cache->cache_id);
 }
-
-/*
- * cbd_cache_seg_detail_show - Display cache segment details
- * @seg_info: Pointer to the segment information structure
- * @buf: Buffer for outputting segment details
- *
- * This function formats and returns information about a cache segment's
- * backend association. Specifically, it outputs the backend ID associated
- * with the cache segment, providing insight into segment allocation and
- * ownership.
- *
- * Returns the number of characters printed into the buffer.
- */
-ssize_t cbd_cache_seg_detail_show(struct cbd_segment_info *seg_info, char *buf)
-{
-	struct cbd_cache_seg_info *cache_info;
-
-	cache_info = (struct cbd_cache_seg_info *)seg_info;
-
-	return sprintf(buf, "backend id: %u\n", cache_info->backend_id);
-}

@@ -82,7 +82,6 @@ static inline u32 cbd_ce_crc(struct cbd_ce *ce)
 
 struct cbd_channel_seg_info {
 	struct cbd_segment_info seg_info;	/* must be the first member */
-	u32	backend_id;
 };
 
 /**
