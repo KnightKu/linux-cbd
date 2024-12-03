@@ -111,6 +111,20 @@ segments_destroy:
 	return ret;
 }
 
+static void used_segs_update_work_fn(struct work_struct *work)
+{
+	struct cbd_cache *cache = container_of(work, struct cbd_cache, used_segs_update_work);
+	struct cbd_cache_used_segs *used_segs;
+
+	used_segs = cbd_meta_find_oldest(&cache->cache_ctrl->used_segs->header, sizeof(struct cbd_cache_used_segs));
+
+	used_segs->header.seq = cbd_meta_get_next_seq(&used_segs->header, sizeof(struct cbd_cache_used_segs));
+	used_segs->used_segs = bitmap_weight(cache->seg_map, cache->n_segs);
+	used_segs->header.crc = cbd_meta_crc(&used_segs->header, sizeof(struct cbd_cache_used_segs));
+
+	cbdt_flush(cache->cbdt, used_segs, sizeof(struct cbd_cache_used_segs));
+}
+
 /**
  * cache_alloc - Allocates and initializes a cbd_cache structure with necessary resources
  * @cbdt: The transport structure associated with the cache
@@ -163,6 +177,7 @@ static struct cbd_cache *cache_alloc(struct cbd_transport *cbdt, struct cbd_cach
 	INIT_DELAYED_WORK(&cache->gc_work, cbd_cache_gc_fn);
 	INIT_WORK(&cache->clean_work, clean_fn);
 	INIT_WORK(&cache->miss_read_end_work, miss_read_end_work_fn);
+	INIT_WORK(&cache->used_segs_update_work, used_segs_update_work_fn);
 
 	return cache;
 
@@ -517,6 +532,8 @@ void cbd_cache_destroy(struct cbd_cache *cache)
 
 	if (cache->n_trees)
 		cache_destroy_keys(cache);
+
+	flush_work(&cache->used_segs_update_work);
 
 	cache_segs_destroy(cache);
 	cache_free(cache);

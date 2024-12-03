@@ -274,6 +274,8 @@ again:
 	cache_seg = &cache->segments[seg_id];
 	cache_seg->cache_seg_id = seg_id;
 
+	queue_work(cache->cache_wq, &cache->used_segs_update_work);
+
 	return cache_seg;
 }
 
@@ -329,6 +331,8 @@ static void cache_seg_invalidate(struct cbd_cache_segment *cache_seg)
 
 	/* clean_work will clean the bad key in key_tree*/
 	queue_work(cache->cache_wq, &cache->clean_work);
+
+	queue_work(cache->cache_wq, &cache->used_segs_update_work);
 }
 
 /**

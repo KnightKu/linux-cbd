@@ -113,6 +113,8 @@ static int last_kset_gc(struct cbd_cache *cache, struct cbd_cache_kset_onmedia *
 	clear_bit(cur_seg->cache_seg_id, cache->seg_map);
 	spin_unlock(&cache->seg_map_lock);
 
+	queue_work(cache->cache_wq, &cache->used_segs_update_work);
+
 	return 0;
 }
 

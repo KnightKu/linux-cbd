@@ -55,6 +55,11 @@ struct cbd_cache_seg_ctrl {
 #define CBDT_CACHE_CTRL_OFF CBDT_SEG_INFO_SIZE
 #define CBDT_CACHE_CTRL_SIZE PAGE_SIZE
 
+struct cbd_cache_used_segs {
+	struct cbd_meta_header header;
+	u32	used_segs;
+};
+
 /* CBD Cache Control structure */
 struct cbd_cache_ctrl {
 	struct cbd_cache_seg_ctrl cache_seg_ctrl;
@@ -64,6 +69,9 @@ struct cbd_cache_ctrl {
 
 	/* Updated by backend writeback_thread */
 	struct cbd_cache_pos_onmedia dirty_tail_pos[CBDT_META_INDEX_MAX];
+
+	/* Updated by blkdev */
+	struct cbd_cache_used_segs used_segs[CBDT_META_INDEX_MAX];
 };
 
 /* Red-black tree for cache entries */

@@ -78,54 +78,55 @@ struct cbd_cache_segment {
 
 /* CBD Cache main structure */
 struct cbd_cache {
-	struct cbd_transport   *cbdt;
-	u32                    cache_id;  /* Same as related backend->backend_id */
-	void                   *owner;    /* For backend cache side only */
-	struct cbd_cache_info  *cache_info;
-	struct cbd_cache_ctrl  *cache_ctrl;
+	struct cbd_transport	*cbdt;
+	u32			cache_id;  /* Same as related backend->backend_id */
+	void			*owner;    /* For backend cache side only */
+	struct cbd_cache_info	*cache_info;
+	struct cbd_cache_ctrl	*cache_ctrl;
 
-	u32                    n_heads;
+	u32			n_heads;
 	struct cbd_cache_data_head *data_heads;
 
-	spinlock_t             key_head_lock;
-	struct cbd_cache_pos   key_head;
-	u32                    n_ksets;
-	struct cbd_cache_kset  *ksets;
+	spinlock_t		key_head_lock;
+	struct cbd_cache_pos	key_head;
+	u32			n_ksets;
+	struct cbd_cache_kset	*ksets;
 
-	struct mutex           key_tail_lock;
-	struct cbd_cache_pos   key_tail;
+	struct mutex		key_tail_lock;
+	struct cbd_cache_pos	key_tail;
 
-	struct mutex           dirty_tail_lock;
-	struct cbd_cache_pos   dirty_tail;
+	struct mutex		dirty_tail_lock;
+	struct cbd_cache_pos	dirty_tail;
 
-	struct kmem_cache      *key_cache;
-	u32                    n_trees;
-	struct cbd_cache_tree  *cache_trees;
-	struct work_struct     clean_work;
+	struct kmem_cache	*key_cache;
+	u32			n_trees;
+	struct cbd_cache_tree	*cache_trees;
+	struct work_struct	clean_work;
+	struct work_struct	used_segs_update_work;
 
-	spinlock_t             miss_read_reqs_lock;
-	struct list_head       miss_read_reqs;
-	struct work_struct     miss_read_end_work;
+	spinlock_t		miss_read_reqs_lock;
+	struct list_head	miss_read_reqs;
+	struct work_struct	miss_read_end_work;
 
-	struct workqueue_struct *cache_wq;
+	struct workqueue_struct	*cache_wq;
 
-	struct file            *bdev_file;
-	u64                    dev_size;
-	struct delayed_work    writeback_work;
-	struct delayed_work    gc_work;
-	struct bio_set         *bioset;
+	struct file		*bdev_file;
+	u64			dev_size;
+	struct delayed_work	writeback_work;
+	struct delayed_work	gc_work;
+	struct bio_set		*bioset;
 
-	struct kmem_cache      *req_cache;
+	struct kmem_cache	*req_cache;
 
-	u32                    state:8;
-	u32                    init_keys:1;
-	u32                    start_writeback:1;
-	u32                    start_gc:1;
+	u32			state:8;
+	u32			init_keys:1;
+	u32			start_writeback:1;
+	u32			start_gc:1;
 
-	u32                    n_segs;
-	unsigned long          *seg_map;
-	u32                    last_cache_seg;
-	spinlock_t             seg_map_lock;
+	u32			n_segs;
+	unsigned long		*seg_map;
+	u32			last_cache_seg;
+	spinlock_t		seg_map_lock;
 	struct cbd_cache_segment segments[]; /* Last member */
 };
 

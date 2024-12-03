@@ -152,7 +152,6 @@ static void cbd_backend_hb(struct cbd_backend *cbdb)
 {
 	cbd_backend_info_write(cbdb);
 }
-
 CBD_OBJ_HEARTBEAT(backend);
 
 static struct attribute *cbd_backend_attrs[] = {

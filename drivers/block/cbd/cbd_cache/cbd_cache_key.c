@@ -896,6 +896,8 @@ int cache_replay(struct cbd_cache *cache)
 		cache_pos_advance(pos, get_kset_onmedia_size(kset_onmedia));
 	}
 
+	queue_work(cache->cache_wq, &cache->used_segs_update_work);
+
 	/* Update the key_head position after replaying. */
 	spin_lock(&cache->key_head_lock);
 	cache_pos_copy(&cache->key_head, pos);
