@@ -57,7 +57,11 @@ struct cbd_cache_seg_ctrl {
 /* CBD Cache Control structure */
 struct cbd_cache_ctrl {
 	struct cbd_cache_seg_ctrl cache_seg_ctrl;
+
+	/* Updated by blkdev gc_thread */
 	struct cbd_cache_pos_onmedia key_tail_pos[CBDT_META_INDEX_MAX];
+
+	/* Updated by backend writeback_thread */
 	struct cbd_cache_pos_onmedia dirty_tail_pos[CBDT_META_INDEX_MAX];
 };
 
