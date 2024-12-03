@@ -48,6 +48,7 @@ struct cbd_cache_pos_onmedia {
 /* Control structure for cache segments */
 struct cbd_cache_seg_ctrl {
 	struct cbd_cache_seg_gen gen[CBDT_META_INDEX_MAX]; /* Updated by blkdev, incremented in invalidating */
+	u64	res[64];
 };
 
 /* Control offsets and sizes for the cache controller */
