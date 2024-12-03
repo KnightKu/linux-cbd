@@ -62,7 +62,7 @@ static ssize_t cache_segs_show(struct device *dev,
 static DEVICE_ATTR_ADMIN_RO(cache_segs);
 
 /**
- * gc_percent_show - Display the garbage collection percentage
+ * cache_gc_percent_show - Display the garbage collection percentage
  * @dev:  Pointer to the device structure representing the cache device
  * @attr: Pointer to the device attribute structure
  * @buf:  Buffer to store the output
@@ -70,7 +70,7 @@ static DEVICE_ATTR_ADMIN_RO(cache_segs);
  * This function retrieves and displays the current garbage collection
  * percentage (`gc_percent`) from the cache's metadata for the backend.
  */
-static ssize_t gc_percent_show(struct device *dev,
+static ssize_t cache_gc_percent_show(struct device *dev,
 			       struct device_attribute *attr,
 			       char *buf)
 {
@@ -88,7 +88,7 @@ static ssize_t gc_percent_show(struct device *dev,
 
 static void __backend_info_write(struct cbd_backend *cbdb);
 /**
- * gc_percent_store - Update the garbage collection percentage
+ * cache_gc_percent_store - Update the garbage collection percentage
  * @dev:   Pointer to the device structure representing the cache device
  * @attr:  Pointer to the device attribute structure
  * @buf:   Buffer containing the input from userspace
@@ -98,7 +98,7 @@ static void __backend_info_write(struct cbd_backend *cbdb);
  * with a new value provided by the user. The function is accessible only to
  * users with administrative privileges (CAP_SYS_ADMIN) on the backend host.
  */
-static ssize_t gc_percent_store(struct device *dev,
+static ssize_t cache_gc_percent_store(struct device *dev,
 				struct device_attribute *attr,
 				const char *buf,
 				size_t size)
@@ -138,7 +138,7 @@ static ssize_t gc_percent_store(struct device *dev,
 
 	return size;
 }
-static DEVICE_ATTR_ADMIN_RW(gc_percent);
+static DEVICE_ATTR_ADMIN_RW(cache_gc_percent);
 
 /**
  * cbd_backend_hb - Update the backend information as part of the heartbeat.
@@ -160,7 +160,7 @@ static struct attribute *cbd_backend_attrs[] = {
 	&dev_attr_host_id.attr,
 	&dev_attr_alive.attr,
 	&dev_attr_cache_segs.attr,
-	&dev_attr_gc_percent.attr,
+	&dev_attr_cache_gc_percent.attr,
 	NULL
 };
 
