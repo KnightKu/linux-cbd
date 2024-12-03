@@ -34,7 +34,6 @@ void cbd_channel_reset(struct cbd_channel *channel)
 	channel->ctrl->submr_tail = channel->ctrl->submr_head = 0;
 	channel->ctrl->compr_tail = channel->ctrl->compr_head = 0;
 
-	cbdt_zero_range(channel->cbdt, channel->ctrl, CBDC_CTRL_SIZE);
 	cbdt_zero_range(channel->cbdt, channel->submr, CBDC_SUBMR_SIZE);
 	cbdt_zero_range(channel->cbdt, channel->compr, CBDC_COMPR_SIZE);
 }
