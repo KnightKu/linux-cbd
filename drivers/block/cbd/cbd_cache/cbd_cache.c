@@ -591,3 +591,20 @@ void cache_info_load(struct cbd_cache *cache)
 {
 	__cache_info_load(cache->cbdt, cache->cache_info, cache->cache_id);
 }
+
+u32 cache_info_used_segs(struct cbd_transport *cbdt, struct cbd_cache_info *cache_info)
+{
+	struct cbd_cache_used_segs *latest_used_segs;
+	struct cbd_cache_ctrl *cache_ctrl;
+	void *seg_info;
+
+	seg_info = cbdt_get_segment_info(cbdt, cache_info->seg_id);
+	cache_ctrl = (seg_info + CBDT_CACHE_SEG_CTRL_OFF);
+
+	latest_used_segs = cbd_meta_find_latest(&cache_ctrl->used_segs->header,
+						sizeof(struct cbd_cache_used_segs));
+	if (!latest_used_segs)
+		return 0;
+
+	return latest_used_segs->used_segs;
+}

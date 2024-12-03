@@ -152,5 +152,6 @@ void cbd_cache_info_init(struct cbd_cache_info *cache_info, u32 cache_segs);
 
 struct cbd_request;
 int cbd_cache_handle_req(struct cbd_cache *cache, struct cbd_request *cbd_req);
+u32 cache_info_used_segs(struct cbd_transport *cbdt, struct cbd_cache_info *cache_info);
 
 #endif /* _CBD_CACHE_H */

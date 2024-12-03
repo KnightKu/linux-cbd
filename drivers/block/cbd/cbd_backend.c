@@ -17,7 +17,6 @@ static ssize_t host_id_show(struct device *dev,
 	struct cbd_backend_info *latest_info;
 
 	backend = container_of(dev, struct cbd_backend_device, dev);
-
 	latest_info = cbdt_backend_info_read(backend->cbdt, backend->id);
 	if (!latest_info || latest_info->state == CBD_BACKEND_STATE_NONE)
 		return 0;
@@ -34,7 +33,6 @@ static ssize_t path_show(struct device *dev,
 	struct cbd_backend_info *latest_info;
 
 	backend = container_of(dev, struct cbd_backend_device, dev);
-
 	latest_info = cbdt_backend_info_read(backend->cbdt, backend->id);
 	if (!latest_info || latest_info->state == CBD_BACKEND_STATE_NONE)
 		return 0;
@@ -52,7 +50,6 @@ static ssize_t cache_segs_show(struct device *dev,
 	struct cbd_backend_info *latest_info;
 
 	backend = container_of(dev, struct cbd_backend_device, dev);
-
 	latest_info = cbdt_backend_info_read(backend->cbdt, backend->id);
 	if (!latest_info || latest_info->state == CBD_BACKEND_STATE_NONE)
 		return 0;
@@ -60,6 +57,28 @@ static ssize_t cache_segs_show(struct device *dev,
 	return sprintf(buf, "%u\n", latest_info->cache_info.n_segs);
 }
 static DEVICE_ATTR_ADMIN_RO(cache_segs);
+
+static ssize_t cache_used_segs_show(struct device *dev,
+			       struct device_attribute *attr,
+			       char *buf)
+{
+	struct cbd_backend_device *backend;
+	struct cbd_backend_info *latest_info;
+	u32 used_segs = 0;
+
+	backend = container_of(dev, struct cbd_backend_device, dev);
+	latest_info = cbdt_backend_info_read(backend->cbdt, backend->id);
+	if (!latest_info || latest_info->state == CBD_BACKEND_STATE_NONE)
+		return 0;
+
+	if (!latest_info->cache_info.n_segs)
+		goto out;
+
+	used_segs = cache_info_used_segs(backend->cbdt, &latest_info->cache_info);
+out:
+	return sprintf(buf, "%u\n", used_segs);
+}
+static DEVICE_ATTR_ADMIN_RO(cache_used_segs);
 
 /**
  * cache_gc_percent_show - Display the garbage collection percentage
@@ -78,7 +97,6 @@ static ssize_t cache_gc_percent_show(struct device *dev,
 	struct cbd_backend_info *latest_info;
 
 	backend = container_of(dev, struct cbd_backend_device, dev);
-
 	latest_info = cbdt_backend_info_read(backend->cbdt, backend->id);
 	if (!latest_info || latest_info->state == CBD_BACKEND_STATE_NONE)
 		return 0;
@@ -160,6 +178,7 @@ static struct attribute *cbd_backend_attrs[] = {
 	&dev_attr_alive.attr,
 	&dev_attr_cache_segs.attr,
 	&dev_attr_cache_gc_percent.attr,
+	&dev_attr_cache_used_segs.attr,
 	NULL
 };
 
