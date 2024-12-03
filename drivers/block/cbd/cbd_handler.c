@@ -253,12 +253,7 @@ static int handler_reset(struct cbd_handler *handler)
 	handler->req_tid_expected = U64_MAX;
 	handler->se_to_handle = 0;
 
-	/* Reset channel data head and tail pointers */
-	handler->channel.data_head = handler->channel.data_tail = 0;
-
-	/* Reset submr and compr control pointers */
-	handler->channel_ctrl->submr_tail = handler->channel_ctrl->submr_head = 0;
-	handler->channel_ctrl->compr_tail = handler->channel_ctrl->compr_head = 0;
+	cbd_channel_reset(&handler->channel);
 	spin_unlock(&handler->submr_lock);
 
 	/* Send a success response for the reset command */

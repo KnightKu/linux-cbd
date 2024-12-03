@@ -25,6 +25,20 @@ int cbdc_map_pages(struct cbd_channel *channel, struct bio *bio, u32 off, u32 si
 	return cbds_map_pages(&channel->segment, bio, off, size);
 }
 
+void cbd_channel_reset(struct cbd_channel *channel)
+{
+	/* Reset channel data head and tail pointers */
+	channel->data_head = channel->data_tail = 0;
+
+	/* Reset submr and compr control pointers */
+	channel->ctrl->submr_tail = channel->ctrl->submr_head = 0;
+	channel->ctrl->compr_tail = channel->ctrl->compr_head = 0;
+
+	cbdt_zero_range(channel->cbdt, channel->ctrl, CBDC_CTRL_SIZE);
+	cbdt_zero_range(channel->cbdt, channel->submr, CBDC_SUBMR_SIZE);
+	cbdt_zero_range(channel->cbdt, channel->compr, CBDC_COMPR_SIZE);
+}
+
 /*
  * cbd_channel_seg_sanitize_pos - Sanitize position within a channel segment ring
  * @pos: Position structure within the segment to sanitize

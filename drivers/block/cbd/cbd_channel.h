@@ -363,6 +363,7 @@ int cbdc_copy_to_bio(struct cbd_channel *channel,
 		u32 data_off, u32 data_len, struct bio *bio, u32 bio_off);
 u32 cbd_channel_crc(struct cbd_channel *channel, u32 data_off, u32 data_len);
 int cbdc_map_pages(struct cbd_channel *channel, struct bio *bio, u32 off, u32 size);
+void cbd_channel_reset(struct cbd_channel *channel);
 
 static inline u64 cbd_channel_flags_get(struct cbd_channel_ctrl *channel_ctrl)
 {
