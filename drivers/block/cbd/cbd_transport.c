@@ -975,13 +975,7 @@ static int transport_dax_init(struct cbd_transport *cbdt, char *path)
 	cbdt->bdev_file = bdev_file;
 	cbdt->dax_dev = dax_dev;
 	cbdt->transport_info_addr = (struct cbd_transport_info *)kaddr;
-	ret = copy_mc_to_kernel(&cbdt->transport_info, cbdt->transport_info_addr, sizeof(struct cbd_transport_info));
-	if (ret) {
-		cbdt_err(cbdt, "failed to read transport_info.\n");
-		ret = -EIO;
-		goto unlock;
-	}
-
+	memcpy(&cbdt->transport_info, cbdt->transport_info_addr, sizeof(struct cbd_transport_info));
 	dax_read_unlock(id);
 
 	return 0;

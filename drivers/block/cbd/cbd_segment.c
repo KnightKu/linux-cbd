@@ -170,7 +170,6 @@ int cbds_copy_to_bio(struct cbd_segment *segment,
 	u32 to_copy, page_off = 0;
 	struct cbd_seg_pos pos = { .segment = segment,
 				   .off = data_off };
-	int ret;
 next:
 	bio_for_each_segment(bv, bio, iter) {
 		if (bio_off > bv.bv_len) {
@@ -191,12 +190,9 @@ again:
 				segment->data_size - pos.off);
 		if (to_copy > data_len)
 			to_copy = data_len;
+
 		flush_dcache_page(bv.bv_page);
-		ret = copy_mc_to_kernel(dst + page_off, segment->data + pos.off, to_copy);
-		if (ret) {
-			kunmap_local(dst);
-			return ret;
-		}
+		memcpy(dst + page_off, segment->data + pos.off, to_copy);
 
 		/* advance */
 		pos.off += to_copy;
