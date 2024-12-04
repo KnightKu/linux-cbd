@@ -276,9 +276,9 @@ static inline void *cache_pos_addr(struct cbd_cache_pos *pos)
  *
  * Returns a pointer to the head of the key set in on-media format.
  */
-static inline struct cbd_cache_kset_onmedia *get_key_head_addr(struct cbd_cache *cache)
+static inline void *get_key_head_addr(struct cbd_cache *cache)
 {
-	return (struct cbd_cache_kset_onmedia *)cache_pos_addr(&cache->key_head);
+	return cache_pos_addr(&cache->key_head);
 }
 
 /**
