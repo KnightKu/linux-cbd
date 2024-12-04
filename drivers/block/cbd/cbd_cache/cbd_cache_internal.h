@@ -132,6 +132,7 @@ struct cbd_cache_kset_onmedia {
 	struct cbd_cache_key_onmedia data[];
 };
 
+extern struct cbd_cache_kset_onmedia cbd_empty_kset;
 
 /* cache key */
 struct cbd_cache_key *cache_key_alloc(struct cbd_cache *cache);

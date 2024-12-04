@@ -188,8 +188,10 @@ int cache_seg_init(struct cbd_cache *cache, u32 seg_id, u32 cache_seg_id,
 		cache_seg->cache_seg_info.segment_info.state = CBD_SEGMENT_STATE_RUNNING;
 		cache_seg->cache_seg_info.segment_info.flags = 0;
 		cache_seg->cache_seg_info.segment_info.backend_id = cache->cache_id;
-
 		cache_seg_info_write(cache_seg);
+
+		/* clear outdated kset in segment */
+		memcpy_flushcache(segment->data, &cbd_empty_kset, sizeof(struct cbd_cache_kset_onmedia));
 	} else {
 		ret = cache_seg_meta_load(cache_seg);
 		if (ret)
@@ -321,9 +323,6 @@ static void cache_seg_invalidate(struct cbd_cache_segment *cache_seg)
 
 	cache = cache_seg->cache;
 	cache_seg_gen_increase(cache_seg);
-
-	/* Zero out the memory region for the segment data */
-	cbdt_zero_range(cache->cbdt, cache_seg->segment.data, cache_seg->segment.data_size);
 
 	spin_lock(&cache->seg_map_lock);
 	clear_bit(cache_seg->cache_seg_id, cache->seg_map);

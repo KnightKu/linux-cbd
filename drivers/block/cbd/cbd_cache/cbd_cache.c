@@ -58,9 +58,6 @@ static int get_seg_id(struct cbd_cache *cache,
 			goto err;
 		}
 
-		/* clear the whole segment before using */
-		cbd_segment_clear(cbdt, *seg_id);
-
 		if (prev_cache_seg)
 			cache_seg_set_next_seg(prev_cache_seg, *seg_id);
 		else

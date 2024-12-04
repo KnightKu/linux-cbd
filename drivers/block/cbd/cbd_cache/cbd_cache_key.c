@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "cbd_cache_internal.h"
 
+struct cbd_cache_kset_onmedia cbd_empty_kset = { 0 };
+
 /**
  * cache_key_init - Initialize a cache key structure.
  * @cache: Pointer to the associated cbd_cache structure.
@@ -200,8 +202,10 @@ again:
 			goto out;
 		}
 
+		/* clear outdated kset in next seg */
+		memcpy_flushcache(next_seg->segment.data, &cbd_empty_kset,
+					sizeof(struct cbd_cache_kset_onmedia));
 		append_last_kset(cache, next_seg->cache_seg_id);
-
 		cache->key_head.cache_seg = next_seg;
 		cache->key_head.seg_off = 0;
 		goto again;
@@ -210,8 +214,12 @@ again:
 	kset_onmedia->magic = CBD_KSET_MAGIC;
 	kset_onmedia->crc = cache_kset_crc(kset_onmedia);
 
-	memcpy_flushcache(get_key_head_addr(cache), kset_onmedia, kset_onmedia_size);
+	/* clear outdated kset after current kset */
+	memcpy_flushcache(get_key_head_addr(cache) + kset_onmedia_size, &cbd_empty_kset,
+				sizeof(struct cbd_cache_kset_onmedia));
 
+	/* write current kset into segment */
+	memcpy_flushcache(get_key_head_addr(cache), kset_onmedia, kset_onmedia_size);
 	memset(kset_onmedia, 0, sizeof(struct cbd_cache_kset_onmedia));
 	cache_pos_advance(&cache->key_head, kset_onmedia_size);
 
