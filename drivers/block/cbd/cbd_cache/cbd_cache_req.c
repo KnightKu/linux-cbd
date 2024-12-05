@@ -213,7 +213,7 @@ static void miss_read_end_req(struct cbd_cache *cache, struct cbd_request *cbd_r
 		struct cbd_cache_subtree *cache_tree;
 
 		key = (struct cbd_cache_key *)priv_data;
-		cache_tree = key->cache_tree;
+		cache_tree = key->cache_subtree;
 
 		/* if this key was deleted from cache_tree by a write, key->flags should be cleared,
 		 * so if cache_key_empty() return true, this key is still in cache_tree
@@ -388,7 +388,7 @@ static struct cbd_request *create_backing_req(struct cbd_cache *cache, struct cb
 
 	/* Allocate a new empty key if insert_key is set */
 	if (insert_key) {
-		key = cache_key_alloc(cache);
+		key = cache_key_alloc(&cache->req_key_tree);
 		if (!key) {
 			ret = -ENOMEM;
 			goto out;
@@ -1029,7 +1029,7 @@ static int cache_write(struct cbd_cache *cache, struct cbd_request *cbd_req)
 		if (io_done >= length)
 			break;
 
-		key = cache_key_alloc(cache);
+		key = cache_key_alloc(&cache->req_key_tree);
 		if (!key) {
 			ret = -ENOMEM;
 			goto err;

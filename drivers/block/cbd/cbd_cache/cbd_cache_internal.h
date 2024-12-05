@@ -82,8 +82,8 @@ struct cbd_cache_data_head {
 
 /* Cache key structure */
 struct cbd_cache_key {
-	struct cbd_cache        *cache;
-	struct cbd_cache_subtree   *cache_tree;
+	struct cbd_cache_tree      *cache_tree;
+	struct cbd_cache_subtree   *cache_subtree;
 	struct kref             ref;
 	struct rb_node          rb_node;
 	struct list_head        list_node;
@@ -129,8 +129,8 @@ struct cbd_cache_kset_onmedia {
 extern struct cbd_cache_kset_onmedia cbd_empty_kset;
 
 /* cache key */
-struct cbd_cache_key *cache_key_alloc(struct cbd_cache *cache);
-void cache_key_init(struct cbd_cache *cache, struct cbd_cache_key *key);
+struct cbd_cache_key *cache_key_alloc(struct cbd_cache_tree *cache_tree);
+void cache_key_init(struct cbd_cache_tree *cache_tree, struct cbd_cache_key *key);
 void cache_key_get(struct cbd_cache_key *key);
 void cache_key_put(struct cbd_cache_key *key);
 int cache_key_append(struct cbd_cache *cache, struct cbd_cache_key *key);
@@ -395,7 +395,7 @@ static inline void cache_key_delete(struct cbd_cache_key *key)
 {
 	struct cbd_cache_subtree *cache_tree;
 
-	cache_tree = key->cache_tree;
+	cache_tree = key->cache_subtree;
 	if (!cache_tree)
 		return;
 

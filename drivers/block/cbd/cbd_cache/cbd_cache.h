@@ -79,6 +79,7 @@ struct cbd_cache_subtree {
 };
 
 struct cbd_cache_tree {
+	struct cbd_cache		*cache;
 	u32				n_trees;
 	struct kmem_cache		*key_cache;
 	struct cbd_cache_subtree	*cache_trees;

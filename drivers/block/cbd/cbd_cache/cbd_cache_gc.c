@@ -153,7 +153,7 @@ void cbd_cache_gc_fn(struct work_struct *work)
 			key_onmedia = &kset_onmedia->data[i];
 
 			key = &key_tmp;
-			cache_key_init(cache, key);
+			cache_key_init(&cache->req_key_tree, key);
 
 			cache_key_decode(key_onmedia, key);
 			cache_key_gc(cache, key);

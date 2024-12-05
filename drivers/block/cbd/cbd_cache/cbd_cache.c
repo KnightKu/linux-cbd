@@ -216,6 +216,8 @@ static int cache_init_keys(struct cbd_cache *cache, u32 n_paral)
 	int ret;
 	u32 i;
 
+	cache->req_key_tree.cache = cache;
+
 	/* Calculate number of cache trees based on the device size */
 	cache->req_key_tree.n_trees = DIV_ROUND_UP(cache->dev_size << SECTOR_SHIFT, CBD_CACHE_TREE_SIZE);
 

@@ -173,7 +173,7 @@ static int cache_kset_writeback(struct cbd_cache *cache,
 		key_onmedia = &kset_onmedia->data[i];
 
 		key = &key_tmp;
-		cache_key_init(cache, key);
+		cache_key_init(&cache->req_key_tree, key);
 
 		cache_key_decode(key_onmedia, key);
 		ret = cache_key_writeback(cache, key);
@@ -249,7 +249,7 @@ static int kset_data_verify(struct cbd_cache *cache,
 		struct cbd_cache_key_onmedia *key_onmedia;
 
 		key = &key_tmp;
-		cache_key_init(cache, key);
+		cache_key_init(&cache->req_key_tree, key);
 
 		key_onmedia = &kset_onmedia->data[i];
 		cache_key_decode(key_onmedia, key);

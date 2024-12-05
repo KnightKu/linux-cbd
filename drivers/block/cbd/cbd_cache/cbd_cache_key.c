@@ -3,40 +3,23 @@
 
 struct cbd_cache_kset_onmedia cbd_empty_kset = { 0 };
 
-/**
- * cache_key_init - Initialize a cache key structure.
- * @cache: Pointer to the associated cbd_cache structure.
- * @key: Pointer to the cbd_cache_key structure to be initialized.
- *
- * This function initializes the reference count, sets the cache pointer,
- * and initializes the list and red-black tree nodes for the cache key.
- */
-void cache_key_init(struct cbd_cache *cache, struct cbd_cache_key *key)
+void cache_key_init(struct cbd_cache_tree *cache_tree, struct cbd_cache_key *key)
 {
 	kref_init(&key->ref);
-	key->cache = cache;
+	key->cache_tree = cache_tree;
 	INIT_LIST_HEAD(&key->list_node);
 	RB_CLEAR_NODE(&key->rb_node);
 }
 
-/**
- * cache_key_alloc - Allocate and initialize a cache key structure.
- * @cache: Pointer to the associated cbd_cache structure.
- *
- * This function allocates memory for a new cache key using a slab cache,
- * initializes it, and returns a pointer to the allocated key.
- * Returns NULL if allocation fails.
- */
-struct cbd_cache_key *cache_key_alloc(struct cbd_cache *cache)
+struct cbd_cache_key *cache_key_alloc(struct cbd_cache_tree *cache_tree)
 {
 	struct cbd_cache_key *key;
 
-	/* Allocate a cache key from the slab cache, zeroed on allocation */
-	key = kmem_cache_zalloc(cache->req_key_tree.key_cache, GFP_NOWAIT);
+	key = kmem_cache_zalloc(cache_tree->key_cache, GFP_NOWAIT);
 	if (!key)
 		return NULL;
 
-	cache_key_init(cache, key);
+	cache_key_init(cache_tree, key);
 
 	return key;
 }
@@ -63,9 +46,9 @@ void cache_key_get(struct cbd_cache_key *key)
 static void cache_key_destroy(struct kref *ref)
 {
 	struct cbd_cache_key *key = container_of(ref, struct cbd_cache_key, ref);
-	struct cbd_cache *cache = key->cache;
+	struct cbd_cache_tree *cache_tree = key->cache_tree;
 
-	kmem_cache_free(cache->req_key_tree.key_cache, key);
+	kmem_cache_free(cache_tree->key_cache, key);
 }
 
 /**
@@ -132,7 +115,7 @@ static void cache_key_encode(struct cbd_cache_key_onmedia *key_onmedia,
  */
 void cache_key_decode(struct cbd_cache_key_onmedia *key_onmedia, struct cbd_cache_key *key)
 {
-	struct cbd_cache *cache = key->cache;
+	struct cbd_cache *cache = key->cache_tree->cache;
 
 	key->off = key_onmedia->off;
 	key->len = key_onmedia->len;
@@ -551,7 +534,7 @@ static int fixup_overlap_contained(struct cbd_cache_key *key,
 		bool need_research = false;
 
 		/* Allocate a new cache key for splitting key_tmp */
-		key_fixup = cache_key_alloc(cache);
+		key_fixup = cache_key_alloc(&cache->req_key_tree);
 		if (!key_fixup) {
 			ret = -ENOMEM;
 			goto out;
@@ -675,7 +658,7 @@ int cache_key_insert(struct cbd_cache *cache, struct cbd_cache_key *key,
 	cache_tree = get_cache_tree(cache, key->off);
 
 	if (new_key)
-		key->cache_tree = cache_tree;
+		key->cache_subtree = cache_tree;
 
 search:
 	prev_node = cache_tree_search(cache_tree, key, &parent, &new, &delete_key_list);
@@ -802,7 +785,7 @@ static int kset_replay(struct cbd_cache *cache, struct cbd_cache_kset_onmedia *k
 	for (i = 0; i < kset_onmedia->key_num; i++) {
 		key_onmedia = &kset_onmedia->data[i];
 
-		key = cache_key_alloc(cache);
+		key = cache_key_alloc(&cache->req_key_tree);
 		if (!key) {
 			ret = -ENOMEM;
 			goto err;
