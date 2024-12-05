@@ -877,7 +877,7 @@ static void backend_segs_clear(struct cbd_transport *cbdt, u32 backend_id)
 			continue;
 
 		if (seg_info->backend_id == backend_id)
-			cbd_segment_clear(cbdt, i);
+			cbdt_segment_info_clear(cbdt, i);
 	}
 }
 

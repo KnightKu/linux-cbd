@@ -15,7 +15,7 @@
  *
  * Returns:
  * true if the cache is clean (no more valid dirty ksets),
- * false if the cache has valid dirty ksets (dirty and requires flushing).
+ * false if the cache has valid dirty ksets.
  */
 static inline bool is_cache_clean(struct cbd_cache *cache)
 {
@@ -157,14 +157,6 @@ static int cache_key_writeback(struct cbd_cache *cache, struct cbd_cache_key *ke
  * @cache: Pointer to the cbd_cache structure for cache context.
  * @kset_onmedia: Pointer to the cbd_cache_kset_onmedia structure, containing
  *                the set of keys to be written back.
- *
- * This function writes back each key in a kset to ensure data consistency in the
- * backing storage. Each key is allocated, decoded, written back, and then released
- * sequentially. After processing all keys in the kset, the function calls `vfs_fsync`
- * to sync data to disk, ensuring that the entire kset is durably stored.
- *
- * Return: 0 on success, -ENOMEM if memory allocation fails for a key,
- *         or another error code from cache_key_writeback on failure.
  */
 static int cache_kset_writeback(struct cbd_cache *cache,
 		struct cbd_cache_kset_onmedia *kset_onmedia)
@@ -176,18 +168,15 @@ static int cache_kset_writeback(struct cbd_cache *cache,
 
 	/* Iterate through all keys in the kset and write each back to storage */
 	for (i = 0; i < kset_onmedia->key_num; i++) {
+		struct cbd_cache_key key_tmp = { 0 };
+
 		key_onmedia = &kset_onmedia->data[i];
 
-		key = cache_key_alloc(cache);
-		if (!key) {
-			cbd_cache_err(cache, "writeback error: failed to allocate key\n");
-			return -ENOMEM;
-		}
+		key = &key_tmp;
+		cache_key_init(cache, key);
 
 		cache_key_decode(key_onmedia, key);
 		ret = cache_key_writeback(cache, key);
-		cache_key_put(key);
-
 		if (ret) {
 			cbd_cache_err(cache, "writeback error: %d\n", ret);
 			return ret;

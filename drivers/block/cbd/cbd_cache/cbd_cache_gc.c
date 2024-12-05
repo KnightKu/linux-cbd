@@ -89,10 +89,6 @@ static bool need_gc(struct cbd_cache *cache)
  * @cache: Pointer to the cbd_cache structure.
  * @kset_onmedia: Pointer to the kset_onmedia structure for the last kset.
  *
- * This function updates the key tail to point to the next segment
- * specified in the kset_onmedia. It clears the segment from the segment map
- * only if the dirty tail has moved beyond the current segment.
- *
  * Return: 0 on success, -EAGAIN if the dirty tail has not moved.
  */
 static int last_kset_gc(struct cbd_cache *cache, struct cbd_cache_kset_onmedia *kset_onmedia)
