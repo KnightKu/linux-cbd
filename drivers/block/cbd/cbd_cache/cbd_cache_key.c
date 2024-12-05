@@ -706,8 +706,8 @@ void clean_fn(struct work_struct *work)
 	struct cbd_cache_key *key;
 	int i, count;
 
-	for (i = 0; i < cache->req_key_tree.n_trees; i++) {
-		cache_tree = &cache->req_key_tree.cache_trees[i];
+	for (i = 0; i < cache->req_key_tree.n_subtrees; i++) {
+		cache_tree = &cache->req_key_tree.subtrees[i];
 
 again:
 		if (cache->state == CBD_CACHE_STATE_STOPPING)
