@@ -232,7 +232,7 @@ void cache_seg_set_next_seg(struct cbd_cache_segment *cache_seg, u32 seg_id);
 
 /* cache info */
 void cache_info_write(struct cbd_cache *cache);
-void cache_info_load(struct cbd_cache *cache);
+int cache_info_load(struct cbd_cache *cache);
 
 /* cache request*/
 int cache_flush(struct cbd_cache *cache);

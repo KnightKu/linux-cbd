@@ -34,7 +34,7 @@ static bool need_gc(struct cbd_cache *cache)
 	u32 segs_used, segs_gc_threshold;
 	int ret;
 
-	/* Refresh dirty_tail position; it may be updated by writeback on the block device side */
+	/* Refresh dirty_tail position; it may be updated by writeback */
 	ret = cache_decode_dirty_tail(cache);
 	if (ret) {
 		cbd_cache_debug(cache, "failed to decode dirty_tail\n");
@@ -70,7 +70,10 @@ static bool need_gc(struct cbd_cache *cache)
 	 * Load gc_percent and check GC threshold. gc_percent can be modified
 	 * via sysfs in metadata, so we need to load the latest cache_info here.
 	 */
-	cache_info_load(cache);
+	ret = cache_info_load(cache);
+	if (ret)
+		return false;
+
 	segs_used = bitmap_weight(cache->seg_map, cache->n_segs);
 	segs_gc_threshold = cache->n_segs * cache->cache_info->gc_percent / 100;
 	if (segs_used < segs_gc_threshold) {

@@ -551,6 +551,11 @@ int cbd_blkdev_start(struct cbd_transport *cbdt, u32 backend_id, u32 queues)
 	int ret;
 
 	backend_info = cbdt_backend_info_read(cbdt, backend_id);
+	if (!backend_info) {
+		cbdt_err(cbdt, "cant read backend info for backend%u.\n", backend_id);
+		return -ENOENT;
+	}
+
 	ret = blkdev_start_validate(cbdt, backend_info, backend_id, &queues);
 	if (ret)
 		return ret;

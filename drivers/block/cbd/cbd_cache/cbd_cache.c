@@ -333,7 +333,7 @@ static void cache_destroy_keys(struct cbd_cache *cache)
 	kvfree(cache->cache_trees);
 }
 
-static void __cache_info_load(struct cbd_transport *cbdt,
+static int __cache_info_load(struct cbd_transport *cbdt,
 			      struct cbd_cache_info *cache_info,
 			      u32 cache_id);
 /*
@@ -353,6 +353,7 @@ static int cache_validate(struct cbd_transport *cbdt,
 			  struct cbd_cache_opts *opts)
 {
 	struct cbd_cache_info *cache_info;
+	int ret = -EINVAL;
 
 	if (opts->n_paral > CBD_CACHE_PARAL_MAX) {
 		cbdt_err(cbdt, "n_paral too large (max %u).\n",
@@ -373,7 +374,9 @@ static int cache_validate(struct cbd_transport *cbdt,
 		cbd_cache_info_init(opts->cache_info, opts->n_segs);
 	} else {
 		/* Load cache information from storage for existing cache */
-		__cache_info_load(cbdt, opts->cache_info, opts->cache_id);
+		ret = __cache_info_load(cbdt, opts->cache_info, opts->cache_id);
+		if (ret)
+			goto err;
 	}
 
 	cache_info = opts->cache_info;
@@ -404,7 +407,7 @@ static int cache_validate(struct cbd_transport *cbdt,
 	return 0;
 
 err:
-	return -EINVAL;
+	return ret;
 }
 
 static int cache_tail_init(struct cbd_cache *cache, bool new_cache)
@@ -565,14 +568,19 @@ void cache_info_write(struct cbd_cache *cache)
  * cache_info structure. It’s primarily intended for loading cache metadata
  * from a persistent backend storage on cache initialization.
  */
-static void __cache_info_load(struct cbd_transport *cbdt,
+static int __cache_info_load(struct cbd_transport *cbdt,
 			      struct cbd_cache_info *cache_info,
 			      u32 cache_id)
 {
 	struct cbd_backend_info *backend_info;
 
 	backend_info = cbdt_backend_info_read(cbdt, cache_id);
+	if (!backend_info)
+		return -ENOENT;
+
 	memcpy(cache_info, &backend_info->cache_info, sizeof(struct cbd_cache_info));
+
+	return 0;
 }
 
 /*
@@ -584,9 +592,9 @@ static void __cache_info_load(struct cbd_transport *cbdt,
  * function is designed to reload the cache’s persisted metadata on
  * initialization.
  */
-void cache_info_load(struct cbd_cache *cache)
+int cache_info_load(struct cbd_cache *cache)
 {
-	__cache_info_load(cache->cbdt, cache->cache_info, cache->cache_id);
+	return __cache_info_load(cache->cbdt, cache->cache_info, cache->cache_id);
 }
 
 u32 cache_info_used_segs(struct cbd_transport *cbdt, struct cbd_cache_info *cache_info)
