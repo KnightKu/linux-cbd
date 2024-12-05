@@ -32,7 +32,7 @@ struct cbd_cache_key *cache_key_alloc(struct cbd_cache *cache)
 	struct cbd_cache_key *key;
 
 	/* Allocate a cache key from the slab cache, zeroed on allocation */
-	key = kmem_cache_zalloc(cache->key_cache, GFP_NOWAIT);
+	key = kmem_cache_zalloc(cache->req_key_tree.key_cache, GFP_NOWAIT);
 	if (!key)
 		return NULL;
 
@@ -65,7 +65,7 @@ static void cache_key_destroy(struct kref *ref)
 	struct cbd_cache_key *key = container_of(ref, struct cbd_cache_key, ref);
 	struct cbd_cache *cache = key->cache;
 
-	kmem_cache_free(cache->key_cache, key);
+	kmem_cache_free(cache->req_key_tree.key_cache, key);
 }
 
 /**

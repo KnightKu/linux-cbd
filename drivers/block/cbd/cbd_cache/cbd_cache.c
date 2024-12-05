@@ -146,8 +146,8 @@ static struct cbd_cache *cache_alloc(struct cbd_transport *cbdt, struct cbd_cach
 	if (!cache->seg_map)
 		goto free_cache;
 
-	cache->key_cache = KMEM_CACHE(cbd_cache_key, 0);
-	if (!cache->key_cache)
+	cache->req_key_tree.key_cache = KMEM_CACHE(cbd_cache_key, 0);
+	if (!cache->req_key_tree.key_cache)
 		goto free_bitmap;
 
 	cache->req_cache = KMEM_CACHE(cbd_request, 0);
@@ -181,7 +181,7 @@ static struct cbd_cache *cache_alloc(struct cbd_transport *cbdt, struct cbd_cach
 free_req_cache:
 	kmem_cache_destroy(cache->req_cache);
 free_key_cache:
-	kmem_cache_destroy(cache->key_cache);
+	kmem_cache_destroy(cache->req_key_tree.key_cache);
 free_bitmap:
 	bitmap_free(cache->seg_map);
 free_cache:
@@ -195,7 +195,7 @@ static void cache_free(struct cbd_cache *cache)
 	drain_workqueue(cache->cache_wq);
 	destroy_workqueue(cache->cache_wq);
 	kmem_cache_destroy(cache->req_cache);
-	kmem_cache_destroy(cache->key_cache);
+	kmem_cache_destroy(cache->req_key_tree.key_cache);
 	bitmap_free(cache->seg_map);
 	kvfree(cache);
 }
