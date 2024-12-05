@@ -100,7 +100,7 @@ struct cbd_cache {
 
 	struct kmem_cache	*key_cache;
 	u32			n_trees;
-	struct cbd_cache_tree	*cache_trees;
+	struct cbd_cache_subtree	*cache_trees;
 	struct work_struct	clean_work;
 	struct work_struct	used_segs_update_work;
 

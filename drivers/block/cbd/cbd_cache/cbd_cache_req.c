@@ -210,7 +210,7 @@ static void miss_read_end_req(struct cbd_cache *cache, struct cbd_request *cbd_r
 
 	if (priv_data) {
 		struct cbd_cache_key *key;
-		struct cbd_cache_tree *cache_tree;
+		struct cbd_cache_subtree *cache_tree;
 
 		key = (struct cbd_cache_key *)priv_data;
 		cache_tree = key->cache_tree;
@@ -509,7 +509,7 @@ static int send_backing_req(struct cbd_cache *cache, struct cbd_request *cbd_req
  * the submission list. Returns -ENOMEM if memory allocation fails.
  */
 static int read_before(struct cbd_cache_key *key, struct cbd_cache_key *key_tmp,
-		struct cbd_cache_tree_walk_ctx *ctx)
+		struct cbd_cache_subtree_walk_ctx *ctx)
 {
 	struct cbd_request *backing_req;
 	int ret;
@@ -568,7 +568,7 @@ out:
  * If memory allocation or data copy fails, returns the corresponding error code.
  */
 static int read_overlap_tail(struct cbd_cache_key *key, struct cbd_cache_key *key_tmp,
-		struct cbd_cache_tree_walk_ctx *ctx)
+		struct cbd_cache_subtree_walk_ctx *ctx)
 {
 	struct cbd_request *backing_req;
 	u32 io_len;
@@ -650,7 +650,7 @@ out:
  * the respective error code.
  */
 static int read_overlap_contain(struct cbd_cache_key *key, struct cbd_cache_key *key_tmp,
-		struct cbd_cache_tree_walk_ctx *ctx)
+		struct cbd_cache_subtree_walk_ctx *ctx)
 {
 	struct cbd_request *backing_req;
 	u32 io_len;
@@ -727,7 +727,7 @@ out:
  * fails, returns the corresponding error code.
  */
 static int read_overlap_contained(struct cbd_cache_key *key, struct cbd_cache_key *key_tmp,
-		struct cbd_cache_tree_walk_ctx *ctx)
+		struct cbd_cache_subtree_walk_ctx *ctx)
 {
 	struct cbd_cache_pos pos;
 	int ret;
@@ -787,7 +787,7 @@ out:
  * the corresponding error code.
  */
 static int read_overlap_head(struct cbd_cache_key *key, struct cbd_cache_key *key_tmp,
-		struct cbd_cache_tree_walk_ctx *ctx)
+		struct cbd_cache_subtree_walk_ctx *ctx)
 {
 	struct cbd_cache_pos pos;
 	u32 io_len;
@@ -846,7 +846,7 @@ out:
  * Returns 0 on successful finalization. If a backend request fails, returns
  * the corresponding error code.
  */
-static int read_walk_finally(struct cbd_cache_tree_walk_ctx *ctx)
+static int read_walk_finally(struct cbd_cache_subtree_walk_ctx *ctx)
 {
 	struct cbd_request *backing_req, *next_req;
 	struct cbd_cache_key *key = ctx->key;
@@ -888,7 +888,7 @@ out:
  * Returns `true` if the walk has completed the requested data length;
  * otherwise, returns `false`.
  */
-static bool read_walk_done(struct cbd_cache_tree_walk_ctx *ctx)
+static bool read_walk_done(struct cbd_cache_subtree_walk_ctx *ctx)
 {
 	return (ctx->req_done >= ctx->cbd_req->data_len);
 }
@@ -925,11 +925,11 @@ static bool read_walk_done(struct cbd_cache_tree_walk_ctx *ctx)
 static int cache_read(struct cbd_cache *cache, struct cbd_request *cbd_req)
 {
 	struct cbd_cache_key key_data = { .off = cbd_req->off, .len = cbd_req->data_len };
-	struct cbd_cache_tree *cache_tree;
+	struct cbd_cache_subtree *cache_tree;
 	struct cbd_cache_key *key_tmp = NULL, *key_next;
 	struct rb_node *prev_node = NULL;
 	struct cbd_cache_key *key = &key_data;
-	struct cbd_cache_tree_walk_ctx walk_ctx = { 0 };
+	struct cbd_cache_subtree_walk_ctx walk_ctx = { 0 };
 	LIST_HEAD(delete_key_list);
 	LIST_HEAD(submit_req_list);
 	int ret;
@@ -971,7 +971,7 @@ cleanup_tree:
 	walk_ctx.start_node = prev_node;
 	walk_ctx.key = key;
 
-	ret = cache_tree_walk(cache, &walk_ctx);
+	ret = cache_tree_walk(&walk_ctx);
 	if (ret == -EINVAL)
 		goto cleanup_tree;
 	else if (ret)
@@ -1018,7 +1018,7 @@ out:
  */
 static int cache_write(struct cbd_cache *cache, struct cbd_request *cbd_req)
 {
-	struct cbd_cache_tree *cache_tree;
+	struct cbd_cache_subtree *cache_tree;
 	struct cbd_cache_key *key;
 	u64 offset = cbd_req->off;
 	u32 length = cbd_req->data_len;

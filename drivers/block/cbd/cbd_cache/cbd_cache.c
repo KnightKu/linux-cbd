@@ -224,14 +224,14 @@ static int cache_init_keys(struct cbd_cache *cache, u32 n_paral)
 	 * Each element is a cache tree structure that contains
 	 * an RB tree root and a spinlock for protecting its contents.
 	 */
-	cache->cache_trees = kvcalloc(cache->n_trees, sizeof(struct cbd_cache_tree), GFP_KERNEL);
+	cache->cache_trees = kvcalloc(cache->n_trees, sizeof(struct cbd_cache_subtree), GFP_KERNEL);
 	if (!cache->cache_trees) {
 		ret = -ENOMEM;
 		goto err;
 	}
 
 	for (i = 0; i < cache->n_trees; i++) {
-		struct cbd_cache_tree *cache_tree = &cache->cache_trees[i];
+		struct cbd_cache_subtree *cache_tree = &cache->cache_trees[i];
 
 		cache_tree->root = RB_ROOT;
 		spin_lock_init(&cache_tree->tree_lock);
@@ -307,7 +307,7 @@ static void cache_destroy_keys(struct cbd_cache *cache)
 	u32 i;
 
 	for (i = 0; i < cache->n_trees; i++) {
-		struct cbd_cache_tree *cache_tree = &cache->cache_trees[i];
+		struct cbd_cache_subtree *cache_tree = &cache->cache_trees[i];
 		struct rb_node *node;
 		struct cbd_cache_key *key;
 

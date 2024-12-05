@@ -288,7 +288,7 @@ out:
  *
  * Returns 0 on success, or a negative error code on failure.
  */
-int cache_tree_walk(struct cbd_cache *cache, struct cbd_cache_tree_walk_ctx *ctx)
+int cache_tree_walk(struct cbd_cache_subtree_walk_ctx *ctx)
 {
 	struct cbd_cache_key *key_tmp, *key;
 	struct rb_node *node_tmp;
@@ -414,7 +414,7 @@ out:
  *
  * Returns a pointer to the previous node.
  */
-struct rb_node *cache_tree_search(struct cbd_cache_tree *cache_tree, struct cbd_cache_key *key,
+struct rb_node *cache_tree_search(struct cbd_cache_subtree *cache_tree, struct cbd_cache_key *key,
 				  struct rb_node **parentp, struct rb_node ***newp,
 				  struct list_head *delete_key_list)
 {
@@ -462,7 +462,7 @@ struct rb_node *cache_tree_search(struct cbd_cache_tree *cache_tree, struct cbd_
  */
 static int fixup_overlap_tail(struct cbd_cache_key *key,
 			       struct cbd_cache_key *key_tmp,
-			       struct cbd_cache_tree_walk_ctx *ctx)
+			       struct cbd_cache_subtree_walk_ctx *ctx)
 {
 	int ret;
 
@@ -501,7 +501,7 @@ out:
  */
 static int fixup_overlap_contain(struct cbd_cache_key *key,
 				  struct cbd_cache_key *key_tmp,
-				  struct cbd_cache_tree_walk_ctx *ctx)
+				  struct cbd_cache_subtree_walk_ctx *ctx)
 {
 	/*
 	 *    |----|			key_tmp
@@ -527,7 +527,7 @@ static int fixup_overlap_contain(struct cbd_cache_key *key,
  * requiring a full research of the tree to find a new insertion point.
  */
 static int fixup_overlap_contained(struct cbd_cache_key *key,
-	struct cbd_cache_key *key_tmp, struct cbd_cache_tree_walk_ctx *ctx)
+	struct cbd_cache_key *key_tmp, struct cbd_cache_subtree_walk_ctx *ctx)
 {
 	struct cbd_cache *cache = ctx->cache;
 	int ret;
@@ -602,7 +602,7 @@ out:
  * re-researched for a new insertion point.
  */
 static int fixup_overlap_head(struct cbd_cache_key *key,
-	struct cbd_cache_key *key_tmp, struct cbd_cache_tree_walk_ctx *ctx)
+	struct cbd_cache_key *key_tmp, struct cbd_cache_subtree_walk_ctx *ctx)
 {
 	/*
 	 * |--------|		key_tmp
@@ -633,7 +633,7 @@ static int fixup_overlap_head(struct cbd_cache_key *key,
 static int cache_insert_fixup(struct cbd_cache *cache,
 	struct cbd_cache_key *key, struct rb_node *prev_node)
 {
-	struct cbd_cache_tree_walk_ctx walk_ctx = { 0 };
+	struct cbd_cache_subtree_walk_ctx walk_ctx = { 0 };
 
 	/* Set up the context with the cache, start node, and new key */
 	walk_ctx.cache = cache;
@@ -647,7 +647,7 @@ static int cache_insert_fixup(struct cbd_cache *cache,
 	walk_ctx.overlap_contained = fixup_overlap_contained;
 
 	/* Begin walking the cache tree to fix overlaps */
-	return cache_tree_walk(cache, &walk_ctx);
+	return cache_tree_walk(&walk_ctx);
 }
 
 /**
@@ -666,7 +666,7 @@ int cache_key_insert(struct cbd_cache *cache, struct cbd_cache_key *key,
 	bool new_key)
 {
 	struct rb_node **new, *parent = NULL;
-	struct cbd_cache_tree *cache_tree;
+	struct cbd_cache_subtree *cache_tree;
 	struct cbd_cache_key *key_tmp = NULL, *key_next;
 	struct rb_node *prev_node = NULL;
 	LIST_HEAD(delete_key_list);
@@ -718,7 +718,7 @@ out:
 void clean_fn(struct work_struct *work)
 {
 	struct cbd_cache *cache = container_of(work, struct cbd_cache, clean_work);
-	struct cbd_cache_tree *cache_tree;
+	struct cbd_cache_subtree *cache_tree;
 	struct rb_node *node;
 	struct cbd_cache_key *key;
 	int i, count;

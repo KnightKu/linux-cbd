@@ -75,7 +75,7 @@ struct cbd_cache_ctrl {
 };
 
 /* Red-black tree for cache entries */
-struct cbd_cache_tree {
+struct cbd_cache_subtree {
 	struct rb_root root;
 	spinlock_t tree_lock;
 };
@@ -89,7 +89,7 @@ struct cbd_cache_data_head {
 /* Cache key structure */
 struct cbd_cache_key {
 	struct cbd_cache        *cache;
-	struct cbd_cache_tree   *cache_tree;
+	struct cbd_cache_subtree   *cache_tree;
 	struct kref             ref;
 	struct rb_node          rb_node;
 	struct list_head        list_node;
@@ -156,7 +156,7 @@ struct cbd_cache_kset {
 	struct cbd_cache_kset_onmedia kset_onmedia;
 };
 
-struct cbd_cache_tree_walk_ctx {
+struct cbd_cache_subtree_walk_ctx {
 	struct cbd_cache *cache;
 	struct rb_node *start_node;
 	struct cbd_request *cbd_req;
@@ -171,49 +171,49 @@ struct cbd_cache_tree_walk_ctx {
 	 * |====|			key
 	 */
 	int (*before)(struct cbd_cache_key *key, struct cbd_cache_key *key_tmp,
-			struct cbd_cache_tree_walk_ctx *ctx);
+			struct cbd_cache_subtree_walk_ctx *ctx);
 
 	/*
 	 * |----------|			key_tmp
 	 *		|=====|		key
 	 */
 	int (*after)(struct cbd_cache_key *key, struct cbd_cache_key *key_tmp,
-			struct cbd_cache_tree_walk_ctx *ctx);
+			struct cbd_cache_subtree_walk_ctx *ctx);
 
 	/*
 	 *     |----------------|	key_tmp
 	 * |===========|		key
 	 */
 	int (*overlap_tail)(struct cbd_cache_key *key, struct cbd_cache_key *key_tmp,
-			struct cbd_cache_tree_walk_ctx *ctx);
+			struct cbd_cache_subtree_walk_ctx *ctx);
 
 	/*
 	 * |--------|			key_tmp
 	 *   |==========|		key
 	 */
 	int (*overlap_head)(struct cbd_cache_key *key, struct cbd_cache_key *key_tmp,
-			struct cbd_cache_tree_walk_ctx *ctx);
+			struct cbd_cache_subtree_walk_ctx *ctx);
 
 	/*
 	 *    |----|			key_tmp
 	 * |==========|			key
 	 */
 	int (*overlap_contain)(struct cbd_cache_key *key, struct cbd_cache_key *key_tmp,
-			struct cbd_cache_tree_walk_ctx *ctx);
+			struct cbd_cache_subtree_walk_ctx *ctx);
 
 	/*
 	 * |-----------|		key_tmp
 	 *   |====|			key
 	 */
 	int (*overlap_contained)(struct cbd_cache_key *key, struct cbd_cache_key *key_tmp,
-			struct cbd_cache_tree_walk_ctx *ctx);
+			struct cbd_cache_subtree_walk_ctx *ctx);
 
-	int (*walk_finally)(struct cbd_cache_tree_walk_ctx *ctx);
-	bool (*walk_done)(struct cbd_cache_tree_walk_ctx *ctx);
+	int (*walk_finally)(struct cbd_cache_subtree_walk_ctx *ctx);
+	bool (*walk_done)(struct cbd_cache_subtree_walk_ctx *ctx);
 };
 
-int cache_tree_walk(struct cbd_cache *cache, struct cbd_cache_tree_walk_ctx *ctx);
-struct rb_node *cache_tree_search(struct cbd_cache_tree *cache_tree, struct cbd_cache_key *key,
+int cache_tree_walk(struct cbd_cache_subtree_walk_ctx *ctx);
+struct rb_node *cache_tree_search(struct cbd_cache_subtree *cache_tree, struct cbd_cache_key *key,
 				  struct rb_node **parentp, struct rb_node ***newp,
 				  struct list_head *delete_key_list);
 int cache_kset_close(struct cbd_cache *cache, struct cbd_cache_kset *kset);
@@ -254,7 +254,7 @@ void cache_writeback_fn(struct work_struct *work);
  *
  * Returns the cache tree corresponding to the specified offset.
  */
-static inline struct cbd_cache_tree *get_cache_tree(struct cbd_cache *cache, u64 off)
+static inline struct cbd_cache_subtree *get_cache_tree(struct cbd_cache *cache, u64 off)
 {
 	return &cache->cache_trees[off >> CBD_CACHE_TREE_SIZE_SHIFT];
 }
@@ -399,7 +399,7 @@ static inline void cache_key_cutback(struct cbd_cache_key *key, u32 cut_len)
  */
 static inline void cache_key_delete(struct cbd_cache_key *key)
 {
-	struct cbd_cache_tree *cache_tree;
+	struct cbd_cache_subtree *cache_tree;
 
 	cache_tree = key->cache_tree;
 	if (!cache_tree)
