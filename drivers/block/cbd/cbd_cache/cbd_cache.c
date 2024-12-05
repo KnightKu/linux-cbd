@@ -224,14 +224,14 @@ static int cache_init_keys(struct cbd_cache *cache, u32 n_paral)
 	 * Each element is a cache tree structure that contains
 	 * an RB tree root and a spinlock for protecting its contents.
 	 */
-	cache->cache_trees = kvcalloc(cache->req_key_tree.n_trees, sizeof(struct cbd_cache_subtree), GFP_KERNEL);
-	if (!cache->cache_trees) {
+	cache->req_key_tree.cache_trees = kvcalloc(cache->req_key_tree.n_trees, sizeof(struct cbd_cache_subtree), GFP_KERNEL);
+	if (!cache->req_key_tree.cache_trees) {
 		ret = -ENOMEM;
 		goto err;
 	}
 
 	for (i = 0; i < cache->req_key_tree.n_trees; i++) {
-		struct cbd_cache_subtree *cache_tree = &cache->cache_trees[i];
+		struct cbd_cache_subtree *cache_tree = &cache->req_key_tree.cache_trees[i];
 
 		cache_tree->root = RB_ROOT;
 		spin_lock_init(&cache_tree->tree_lock);
@@ -289,7 +289,7 @@ free_heads:
 free_kset:
 	kfree(cache->ksets);
 free_trees:
-	kvfree(cache->cache_trees);
+	kvfree(cache->req_key_tree.cache_trees);
 err:
 	return ret;
 }
@@ -307,7 +307,7 @@ static void cache_destroy_keys(struct cbd_cache *cache)
 	u32 i;
 
 	for (i = 0; i < cache->req_key_tree.n_trees; i++) {
-		struct cbd_cache_subtree *cache_tree = &cache->cache_trees[i];
+		struct cbd_cache_subtree *cache_tree = &cache->req_key_tree.cache_trees[i];
 		struct rb_node *node;
 		struct cbd_cache_key *key;
 
@@ -330,7 +330,7 @@ static void cache_destroy_keys(struct cbd_cache *cache)
 
 	kfree(cache->data_heads);
 	kfree(cache->ksets);
-	kvfree(cache->cache_trees);
+	kvfree(cache->req_key_tree.cache_trees);
 }
 
 static int __cache_info_load(struct cbd_transport *cbdt,

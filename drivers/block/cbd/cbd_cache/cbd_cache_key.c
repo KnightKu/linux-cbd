@@ -724,7 +724,7 @@ void clean_fn(struct work_struct *work)
 	int i, count;
 
 	for (i = 0; i < cache->req_key_tree.n_trees; i++) {
-		cache_tree = &cache->cache_trees[i];
+		cache_tree = &cache->req_key_tree.cache_trees[i];
 
 again:
 		if (cache->state == CBD_CACHE_STATE_STOPPING)

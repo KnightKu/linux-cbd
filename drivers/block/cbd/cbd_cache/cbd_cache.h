@@ -80,6 +80,7 @@ struct cbd_cache_subtree {
 
 struct cbd_cache_tree {
 	u32				n_trees;
+	struct cbd_cache_subtree	*cache_trees;
 };
 
 #define CBD_CACHE_STATE_NONE		0
@@ -110,7 +111,6 @@ struct cbd_cache {
 
 	struct cbd_cache_tree	req_key_tree;
 	struct kmem_cache		*key_cache;
-	struct cbd_cache_subtree	*cache_trees;
 	struct work_struct	clean_work;
 	struct work_struct	used_segs_update_work;
 

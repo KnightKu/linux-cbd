@@ -250,7 +250,7 @@ void cache_writeback_fn(struct work_struct *work);
  */
 static inline struct cbd_cache_subtree *get_cache_tree(struct cbd_cache *cache, u64 off)
 {
-	return &cache->cache_trees[off >> CBD_CACHE_TREE_SIZE_SHIFT];
+	return &cache->req_key_tree.cache_trees[off >> CBD_CACHE_TREE_SIZE_SHIFT];
 }
 
 /**
