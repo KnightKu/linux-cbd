@@ -74,12 +74,6 @@ struct cbd_cache_ctrl {
 	struct cbd_cache_used_segs used_segs[CBDT_META_INDEX_MAX];
 };
 
-/* Red-black tree for cache entries */
-struct cbd_cache_subtree {
-	struct rb_root root;
-	spinlock_t tree_lock;
-};
-
 /* Data head lock for CBD Cache */
 struct cbd_cache_data_head {
 	spinlock_t data_head_lock;

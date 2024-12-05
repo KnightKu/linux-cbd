@@ -723,7 +723,7 @@ void clean_fn(struct work_struct *work)
 	struct cbd_cache_key *key;
 	int i, count;
 
-	for (i = 0; i < cache->n_trees; i++) {
+	for (i = 0; i < cache->req_key_tree.n_trees; i++) {
 		cache_tree = &cache->cache_trees[i];
 
 again:

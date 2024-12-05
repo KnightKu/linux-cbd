@@ -217,20 +217,20 @@ static int cache_init_keys(struct cbd_cache *cache, u32 n_paral)
 	u32 i;
 
 	/* Calculate number of cache trees based on the device size */
-	cache->n_trees = DIV_ROUND_UP(cache->dev_size << SECTOR_SHIFT, CBD_CACHE_TREE_SIZE);
+	cache->req_key_tree.n_trees = DIV_ROUND_UP(cache->dev_size << SECTOR_SHIFT, CBD_CACHE_TREE_SIZE);
 
 	/*
 	 * Allocate and initialize the cache_trees array.
 	 * Each element is a cache tree structure that contains
 	 * an RB tree root and a spinlock for protecting its contents.
 	 */
-	cache->cache_trees = kvcalloc(cache->n_trees, sizeof(struct cbd_cache_subtree), GFP_KERNEL);
+	cache->cache_trees = kvcalloc(cache->req_key_tree.n_trees, sizeof(struct cbd_cache_subtree), GFP_KERNEL);
 	if (!cache->cache_trees) {
 		ret = -ENOMEM;
 		goto err;
 	}
 
-	for (i = 0; i < cache->n_trees; i++) {
+	for (i = 0; i < cache->req_key_tree.n_trees; i++) {
 		struct cbd_cache_subtree *cache_tree = &cache->cache_trees[i];
 
 		cache_tree->root = RB_ROOT;
@@ -306,7 +306,7 @@ static void cache_destroy_keys(struct cbd_cache *cache)
 {
 	u32 i;
 
-	for (i = 0; i < cache->n_trees; i++) {
+	for (i = 0; i < cache->req_key_tree.n_trees; i++) {
 		struct cbd_cache_subtree *cache_tree = &cache->cache_trees[i];
 		struct rb_node *node;
 		struct cbd_cache_key *key;
@@ -530,7 +530,7 @@ void cbd_cache_destroy(struct cbd_cache *cache)
 	if (cache->start_writeback)
 		cache_writeback_exit(cache);
 
-	if (cache->n_trees)
+	if (cache->req_key_tree.n_trees)
 		cache_destroy_keys(cache);
 
 	flush_work(&cache->used_segs_update_work);

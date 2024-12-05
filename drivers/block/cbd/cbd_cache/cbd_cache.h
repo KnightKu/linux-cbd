@@ -72,6 +72,16 @@ struct cbd_cache_segment {
 	struct mutex           ctrl_lock;
 };
 
+/* Red-black tree for cache entries */
+struct cbd_cache_subtree {
+	struct rb_root root;
+	spinlock_t tree_lock;
+};
+
+struct cbd_cache_tree {
+	u32				n_trees;
+};
+
 #define CBD_CACHE_STATE_NONE		0
 #define CBD_CACHE_STATE_RUNNING		1
 #define CBD_CACHE_STATE_STOPPING	2
@@ -98,8 +108,8 @@ struct cbd_cache {
 	struct mutex		dirty_tail_lock;
 	struct cbd_cache_pos	dirty_tail;
 
-	struct kmem_cache	*key_cache;
-	u32			n_trees;
+	struct cbd_cache_tree	req_key_tree;
+	struct kmem_cache		*key_cache;
 	struct cbd_cache_subtree	*cache_trees;
 	struct work_struct	clean_work;
 	struct work_struct	used_segs_update_work;
