@@ -504,7 +504,7 @@ static int fixup_overlap_contain(struct cbd_cache_key *key,
 static int fixup_overlap_contained(struct cbd_cache_key *key,
 	struct cbd_cache_key *key_tmp, struct cbd_cache_subtree_walk_ctx *ctx)
 {
-	struct cbd_cache *cache = ctx->cache;
+	struct cbd_cache_tree *cache_tree = ctx->cache_tree;
 	int ret;
 
 	/*
@@ -526,7 +526,7 @@ static int fixup_overlap_contained(struct cbd_cache_key *key,
 		bool need_research = false;
 
 		/* Allocate a new cache key for splitting key_tmp */
-		key_fixup = cache_key_alloc(&cache->req_key_tree);
+		key_fixup = cache_key_alloc(cache_tree);
 		if (!key_fixup) {
 			ret = -ENOMEM;
 			goto out;
@@ -547,7 +547,7 @@ static int fixup_overlap_contained(struct cbd_cache_key *key,
 			cache_key_put(key_fixup);
 		} else {
 			/* Insert the new key into the cache */
-			ret = cache_key_insert(cache, key_fixup, false);
+			ret = cache_key_insert(cache_tree, key_fixup, false);
 			if (ret)
 				goto out;
 			need_research = true;
@@ -596,7 +596,7 @@ static int fixup_overlap_head(struct cbd_cache_key *key,
 
 /**
  * cache_insert_fixup - Fix up overlaps when inserting a new key.
- * @cache: Pointer to the cache structure.
+ * @cache_tree: Pointer to the cache_tree structure.
  * @key: The new cache key to insert.
  * @prev_node: The last visited node during the search.
  *
@@ -605,13 +605,13 @@ static int fixup_overlap_head(struct cbd_cache_key *key,
  * the new key and existing keys in the cache tree. Various
  * fixup functions are provided to manage different overlap scenarios.
  */
-static int cache_insert_fixup(struct cbd_cache *cache,
+static int cache_insert_fixup(struct cbd_cache_tree *cache_tree,
 	struct cbd_cache_key *key, struct rb_node *prev_node)
 {
 	struct cbd_cache_subtree_walk_ctx walk_ctx = { 0 };
 
 	/* Set up the context with the cache, start node, and new key */
-	walk_ctx.cache = cache;
+	walk_ctx.cache_tree = cache_tree;
 	walk_ctx.start_node = prev_node;
 	walk_ctx.key = key;
 
@@ -627,7 +627,7 @@ static int cache_insert_fixup(struct cbd_cache *cache,
 
 /**
  * cache_key_insert - Insert a new cache key into the cache tree.
- * @cache: Pointer to the cache structure.
+ * @cache_tree: Pointer to the cache_tree structure.
  * @key: The cache key to insert.
  * @fixup: Indicates if this is a new key being inserted.
  *
@@ -637,7 +637,7 @@ static int cache_insert_fixup(struct cbd_cache *cache,
  *
  * Returns 0 on success or a negative error code on failure.
  */
-int cache_key_insert(struct cbd_cache *cache, struct cbd_cache_key *key,
+int cache_key_insert(struct cbd_cache_tree *cache_tree, struct cbd_cache_key *key,
 	bool fixup)
 {
 	struct rb_node **new, *parent = NULL;
@@ -647,7 +647,7 @@ int cache_key_insert(struct cbd_cache *cache, struct cbd_cache_key *key,
 	LIST_HEAD(delete_key_list);
 	int ret;
 
-	cache_subtree = get_subtree(cache, key->off);
+	cache_subtree = get_subtree(cache_tree, key->off);
 	key->cache_subtree = cache_subtree;
 search:
 	prev_node = cache_subtree_search(cache_subtree, key, &parent, &new, &delete_key_list);
@@ -661,7 +661,7 @@ search:
 	}
 
 	if (fixup) {
-		ret = cache_insert_fixup(cache, key, prev_node);
+		ret = cache_insert_fixup(cache_tree, key, prev_node);
 		if (ret == -EAGAIN)
 			goto search;
 		if (ret)
@@ -798,7 +798,7 @@ static int kset_replay(struct cbd_cache *cache, struct cbd_cache_kset_onmedia *k
 		if (key->seg_gen < key->cache_pos.cache_seg->gen) {
 			cache_key_put(key);
 		} else {
-			ret = cache_key_insert(cache, key, true);
+			ret = cache_key_insert(&cache->req_key_tree, key, true);
 			if (ret) {
 				cache_key_put(key);
 				goto err;
@@ -888,18 +888,27 @@ out:
 
 int cache_tree_init(struct cbd_cache *cache, struct cbd_cache_tree *cache_tree, u32 n_subtrees)
 {
+	int ret;
 	u32 i;
 
 	cache_tree->cache = cache;
 	cache_tree->n_subtrees = n_subtrees;
+
+	cache_tree->key_cache = KMEM_CACHE(cbd_cache_key, 0);
+	if (!cache_tree->key_cache) {
+		ret = -ENOMEM;
+		goto err;
+	}
 	/*
 	 * Allocate and initialize the subtrees array.
 	 * Each element is a cache tree structure that contains
 	 * an RB tree root and a spinlock for protecting its contents.
 	 */
 	cache_tree->subtrees = kvcalloc(cache_tree->n_subtrees, sizeof(struct cbd_cache_subtree), GFP_KERNEL);
-	if (!cache_tree->n_subtrees)
-		return -ENOMEM;
+	if (!cache_tree->n_subtrees) {
+		ret = -ENOMEM;
+		goto destroy_key_cache;
+	}
 
 	for (i = 0; i < cache_tree->n_subtrees; i++) {
 		struct cbd_cache_subtree *cache_subtree = &cache_tree->subtrees[i];
@@ -909,6 +918,11 @@ int cache_tree_init(struct cbd_cache *cache, struct cbd_cache_tree *cache_tree, 
 	}
 
 	return 0;
+
+destroy_key_cache:
+	kmem_cache_destroy(cache_tree->key_cache);
+err:
+	return ret;
 }
 
 void cache_tree_exit(struct cbd_cache_tree *cache_tree)
@@ -932,5 +946,5 @@ void cache_tree_exit(struct cbd_cache_tree *cache_tree)
 		spin_unlock(&cache_subtree->tree_lock);
 	}
 	kvfree(cache_tree->subtrees);
+	kmem_cache_destroy(cache_tree->key_cache);
 }
-

@@ -340,7 +340,7 @@ static void submit_backing_req(struct cbd_cache *cache, struct cbd_request *cbd_
 
 		/* Attempt to insert the key into the cache if priv_data is set */
 		key = (struct cbd_cache_key *)cbd_req->priv_data;
-		ret = cache_key_insert(cache, key, true);
+		ret = cache_key_insert(&cache->req_key_tree, key, true);
 		if (ret) {
 			/* Release the key if insertion fails */
 			cache_key_put(key);
@@ -519,7 +519,7 @@ static int read_before(struct cbd_cache_key *key, struct cbd_cache_key *key_tmp,
 	 * meaning the requested data range is missing from the cache tree
 	 * and must be retrieved from the backend.
 	 */
-	backing_req = create_backing_req(ctx->cache, ctx->cbd_req, ctx->req_done, key->len, true);
+	backing_req = create_backing_req(ctx->cache_tree->cache, ctx->cbd_req, ctx->req_done, key->len, true);
 	if (!backing_req) {
 		ret = -ENOMEM;
 		goto out;
@@ -580,7 +580,7 @@ static int read_overlap_tail(struct cbd_cache_key *key, struct cbd_cache_key *ke
 	 */
 	io_len = cache_key_lstart(key_tmp) - cache_key_lstart(key);
 	if (io_len) {
-		backing_req = create_backing_req(ctx->cache, ctx->cbd_req, ctx->req_done, io_len, true);
+		backing_req = create_backing_req(ctx->cache_tree->cache, ctx->cbd_req, ctx->req_done, io_len, true);
 		if (!backing_req) {
 			ret = -ENOMEM;
 			goto out;
@@ -597,11 +597,11 @@ static int read_overlap_tail(struct cbd_cache_key *key, struct cbd_cache_key *ke
 	 */
 	io_len = cache_key_lend(key) - cache_key_lstart(key_tmp);
 	if (cache_key_empty(key_tmp)) {
-		ret = send_backing_req(ctx->cache, ctx->cbd_req, ctx->req_done, io_len, false);
+		ret = send_backing_req(ctx->cache_tree->cache, ctx->cbd_req, ctx->req_done, io_len, false);
 		if (ret)
 			goto out;
 	} else {
-		ret = cache_copy_to_req_bio(ctx->cache, ctx->cbd_req, ctx->req_done,
+		ret = cache_copy_to_req_bio(ctx->cache_tree->cache, ctx->cbd_req, ctx->req_done,
 					io_len, &key_tmp->cache_pos, key_tmp->seg_gen);
 		if (ret) {
 			list_add(&key_tmp->list_node, ctx->delete_key_list);
@@ -662,7 +662,7 @@ static int read_overlap_contain(struct cbd_cache_key *key, struct cbd_cache_key 
 	 */
 	io_len = cache_key_lstart(key_tmp) - cache_key_lstart(key);
 	if (io_len) {
-		backing_req = create_backing_req(ctx->cache, ctx->cbd_req, ctx->req_done, io_len, true);
+		backing_req = create_backing_req(ctx->cache_tree->cache, ctx->cbd_req, ctx->req_done, io_len, true);
 		if (!backing_req) {
 			ret = -ENOMEM;
 			goto out;
@@ -678,11 +678,11 @@ static int read_overlap_contain(struct cbd_cache_key *key, struct cbd_cache_key 
 	 */
 	io_len = key_tmp->len;
 	if (cache_key_empty(key_tmp)) {
-		ret = send_backing_req(ctx->cache, ctx->cbd_req, ctx->req_done, io_len, false);
+		ret = send_backing_req(ctx->cache_tree->cache, ctx->cbd_req, ctx->req_done, io_len, false);
 		if (ret)
 			goto out;
 	} else {
-		ret = cache_copy_to_req_bio(ctx->cache, ctx->cbd_req, ctx->req_done,
+		ret = cache_copy_to_req_bio(ctx->cache_tree->cache, ctx->cbd_req, ctx->req_done,
 					io_len, &key_tmp->cache_pos, key_tmp->seg_gen);
 		if (ret) {
 			list_add(&key_tmp->list_node, ctx->delete_key_list);
@@ -737,14 +737,14 @@ static int read_overlap_contained(struct cbd_cache_key *key, struct cbd_cache_ke
 	 * a backend request to fetch the required data for `key`.
 	 */
 	if (cache_key_empty(key_tmp)) {
-		ret = send_backing_req(ctx->cache, ctx->cbd_req, ctx->req_done, key->len, false);
+		ret = send_backing_req(ctx->cache_tree->cache, ctx->cbd_req, ctx->req_done, key->len, false);
 		if (ret)
 			goto out;
 	} else {
 		cache_pos_copy(&pos, &key_tmp->cache_pos);
 		cache_pos_advance(&pos, cache_key_lstart(key) - cache_key_lstart(key_tmp));
 
-		ret = cache_copy_to_req_bio(ctx->cache, ctx->cbd_req, ctx->req_done,
+		ret = cache_copy_to_req_bio(ctx->cache_tree->cache, ctx->cbd_req, ctx->req_done,
 					key->len, &pos, key_tmp->seg_gen);
 		if (ret) {
 			list_add(&key_tmp->list_node, ctx->delete_key_list);
@@ -796,14 +796,14 @@ static int read_overlap_head(struct cbd_cache_key *key, struct cbd_cache_key *ke
 	io_len = cache_key_lend(key_tmp) - cache_key_lstart(key);
 
 	if (cache_key_empty(key_tmp)) {
-		ret = send_backing_req(ctx->cache, ctx->cbd_req, ctx->req_done, io_len, false);
+		ret = send_backing_req(ctx->cache_tree->cache, ctx->cbd_req, ctx->req_done, io_len, false);
 		if (ret)
 			goto out;
 	} else {
 		cache_pos_copy(&pos, &key_tmp->cache_pos);
 		cache_pos_advance(&pos, cache_key_lstart(key) - cache_key_lstart(key_tmp));
 
-		ret = cache_copy_to_req_bio(ctx->cache, ctx->cbd_req, ctx->req_done,
+		ret = cache_copy_to_req_bio(ctx->cache_tree->cache, ctx->cbd_req, ctx->req_done,
 					io_len, &pos, key_tmp->seg_gen);
 		if (ret) {
 			list_add(&key_tmp->list_node, ctx->delete_key_list);
@@ -853,7 +853,7 @@ static int read_walk_finally(struct cbd_cache_subtree_walk_ctx *ctx)
 	int ret;
 
 	if (key->len) {
-		ret = send_backing_req(ctx->cache, ctx->cbd_req, ctx->req_done, key->len, true);
+		ret = send_backing_req(ctx->cache_tree->cache, ctx->cbd_req, ctx->req_done, key->len, true);
 		if (ret)
 			goto out;
 		ctx->req_done += key->len;
@@ -861,7 +861,7 @@ static int read_walk_finally(struct cbd_cache_subtree_walk_ctx *ctx)
 
 	list_for_each_entry_safe(backing_req, next_req, ctx->submit_req_list, inflight_reqs_node) {
 		list_del_init(&backing_req->inflight_reqs_node);
-		submit_backing_req(ctx->cache, backing_req);
+		submit_backing_req(ctx->cache_tree->cache, backing_req);
 	}
 
 	return 0;
@@ -934,7 +934,7 @@ static int cache_read(struct cbd_cache *cache, struct cbd_request *cbd_req)
 	LIST_HEAD(submit_req_list);
 	int ret;
 
-	walk_ctx.cache = cache;
+	walk_ctx.cache_tree = &cache->req_key_tree;
 	walk_ctx.req_done = 0;
 	walk_ctx.cbd_req = cbd_req;
 	walk_ctx.before = read_before;
@@ -953,7 +953,7 @@ next_tree:
 	if (key->len > CBD_CACHE_TREE_SIZE - (key->off & CBD_CACHE_TREE_SIZE_MASK))
 		key->len = CBD_CACHE_TREE_SIZE - (key->off & CBD_CACHE_TREE_SIZE_MASK);
 
-	cache_subtree = get_subtree(cache, key->off);
+	cache_subtree = get_subtree(&cache->req_key_tree, key->off);
 	spin_lock(&cache_subtree->tree_lock);
 
 search:
@@ -1054,9 +1054,9 @@ static int cache_write(struct cbd_cache *cache, struct cbd_request *cbd_req)
 
 		cache_copy_from_req_bio(cache, key, cbd_req, io_done);
 
-		cache_subtree = get_subtree(cache, key->off);
+		cache_subtree = get_subtree(&cache->req_key_tree, key->off);
 		spin_lock(&cache_subtree->tree_lock);
-		ret = cache_key_insert(cache, key, true);
+		ret = cache_key_insert(&cache->req_key_tree, key, true);
 		if (ret) {
 			cache_seg_put(key->cache_pos.cache_seg);
 			cache_key_put(key);

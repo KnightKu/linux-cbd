@@ -66,6 +66,7 @@ void cache_writeback_exit(struct cbd_cache *cache)
 
 	bioset_exit(cache->bioset);
 	kfree(cache->bioset);
+	cache_tree_exit(&cache->writeback_key_tree);
 }
 
 /**
@@ -82,10 +83,14 @@ int cache_writeback_init(struct cbd_cache *cache)
 {
 	int ret;
 
+	ret = cache_tree_init(cache, &cache->writeback_key_tree, 1);
+	if (ret)
+		goto err;
+
 	cache->bioset = kzalloc(sizeof(*cache->bioset), GFP_KERNEL);
 	if (!cache->bioset) {
 		ret = -ENOMEM;
-		goto err;
+		goto tree_exit;
 	}
 
 	ret = bioset_init(cache->bioset, 256, 0, BIOSET_NEED_BVECS);
@@ -100,6 +105,8 @@ int cache_writeback_init(struct cbd_cache *cache)
 
 	return 0;
 
+tree_exit:
+	cache_tree_exit(&cache->writeback_key_tree);
 err:
 	return ret;
 }
@@ -152,6 +159,37 @@ static int cache_key_writeback(struct cbd_cache *cache, struct cbd_cache_key *ke
 	return 0;
 }
 
+static int cache_wb_tree_writeback(struct cbd_cache *cache)
+{
+	struct cbd_cache_tree *cache_tree = &cache->writeback_key_tree;
+	struct cbd_cache_subtree *cache_subtree;
+	struct rb_node *node;
+	struct cbd_cache_key *key;
+	int ret;
+	u32 i;
+
+	for (i = 0; i < cache_tree->n_subtrees; i++) {
+		cache_subtree = &cache_tree->subtrees[i];
+
+		node = rb_first(&cache_subtree->root);
+		while (node) {
+			key = CACHE_KEY(node);
+			node = rb_next(node);
+
+			pr_err("writeback\n");
+			ret = cache_key_writeback(cache, key);
+			if (ret) {
+				cbd_cache_err(cache, "writeback error: %d\n", ret);
+				return ret;
+			}
+
+			cache_key_delete(key);
+		}
+	}
+
+	return 0;
+}
+
 /**
  * cache_kset_writeback - Write back a set of cache keys to the backing storage.
  * @cache: Pointer to the cbd_cache structure for cache context.
@@ -168,20 +206,22 @@ static int cache_kset_writeback(struct cbd_cache *cache,
 
 	/* Iterate through all keys in the kset and write each back to storage */
 	for (i = 0; i < kset_onmedia->key_num; i++) {
-		struct cbd_cache_key key_tmp = { 0 };
-
 		key_onmedia = &kset_onmedia->data[i];
 
-		key = &key_tmp;
-		cache_key_init(NULL, key);
+		key = cache_key_alloc(&cache->writeback_key_tree);
+		if (!key)
+			return -ENOMEM;
 
 		cache_key_decode(cache, key_onmedia, key);
-		ret = cache_key_writeback(cache, key);
-		if (ret) {
-			cbd_cache_err(cache, "writeback error: %d\n", ret);
+		ret = cache_key_insert(&cache->writeback_key_tree, key, true);
+		if (ret)
 			return ret;
-		}
 	}
+
+
+	ret = cache_wb_tree_writeback(cache);
+	if (ret)
+		return ret;
 
 	/* Sync the entire kset's data to disk to ensure durability */
 	vfs_fsync(cache->bdev_file, 1);
