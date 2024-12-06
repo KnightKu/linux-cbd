@@ -176,7 +176,6 @@ static int cache_wb_tree_writeback(struct cbd_cache *cache)
 			key = CACHE_KEY(node);
 			node = rb_next(node);
 
-			pr_err("writeback\n");
 			ret = cache_key_writeback(cache, key);
 			if (ret) {
 				cbd_cache_err(cache, "writeback error: %d\n", ret);
@@ -187,17 +186,13 @@ static int cache_wb_tree_writeback(struct cbd_cache *cache)
 		}
 	}
 
+	/* Sync the entire kset's data to disk to ensure durability */
+	vfs_fsync(cache->bdev_file, 1);
+
 	return 0;
 }
 
-/**
- * cache_kset_writeback - Write back a set of cache keys to the backing storage.
- * @cache: Pointer to the cbd_cache structure for cache context.
- * @kset_onmedia: Pointer to the cbd_cache_kset_onmedia structure, containing
- *                the set of keys to be written back.
- */
-static int cache_kset_writeback(struct cbd_cache *cache,
-		struct cbd_cache_kset_onmedia *kset_onmedia)
+static int cache_kset_insert_tree(struct cbd_cache *cache, struct cbd_cache_kset_onmedia *kset_onmedia)
 {
 	struct cbd_cache_key_onmedia *key_onmedia;
 	struct cbd_cache_key *key;
@@ -218,14 +213,6 @@ static int cache_kset_writeback(struct cbd_cache *cache,
 			return ret;
 	}
 
-
-	ret = cache_wb_tree_writeback(cache);
-	if (ret)
-		return ret;
-
-	/* Sync the entire kset's data to disk to ensure durability */
-	vfs_fsync(cache->bdev_file, 1);
-
 	return 0;
 }
 
@@ -243,10 +230,15 @@ static int cache_kset_writeback(struct cbd_cache *cache,
  * The function updates the dirty tail position to the start of the next segment,
  * ensuring that writeback can resume from the appropriate location in the cache.
  */
-static void last_kset_writeback(struct cbd_cache *cache,
+static int last_kset_writeback(struct cbd_cache *cache,
 		struct cbd_cache_kset_onmedia *last_kset_onmedia)
 {
 	struct cbd_cache_segment *next_seg;
+	int ret;
+
+	ret = cache_wb_tree_writeback(cache);
+	if (ret)
+		return ret;
 
 	cbd_cache_debug(cache, "last kset, next: %u\n", last_kset_onmedia->next_cache_seg_id);
 
@@ -255,6 +247,8 @@ static void last_kset_writeback(struct cbd_cache *cache,
 	cache->dirty_tail.cache_seg = next_seg;
 	cache->dirty_tail.seg_off = 0;
 	cache_encode_dirty_tail(cache);
+
+	return 0;
 }
 
 
@@ -306,6 +300,7 @@ static int kset_data_verify(struct cbd_cache *cache,
 
 #endif
 
+#define CBD_CACHE_WB_KSET_MAX		256
 /**
  * cache_writeback_fn - Main function for handling writeback work in the cache.
  * @work: Pointer to the work_struct, which contains the context for the work item.
@@ -319,19 +314,25 @@ void cache_writeback_fn(struct work_struct *work)
 {
 	struct cbd_cache *cache = container_of(work, struct cbd_cache, writeback_work.work);
 	struct cbd_cache_kset_onmedia *kset_onmedia;
+	u32 wb_kset_count = 0;
 	int ret = 0;
 	void *addr;
 
 	/* Loop until all dirty data is written back and the cache is clean */
 	while (true) {
-		if (is_cache_clean(cache))
+		if (is_cache_clean(cache)) {
+			if (wb_kset_count)
+				goto wb_tree_write;
 			break;
+		}
 
 		addr = cache_pos_addr(&cache->dirty_tail);
 		kset_onmedia = (struct cbd_cache_kset_onmedia *)addr;
 
 		if (kset_onmedia->flags & CBD_KSET_FLAGS_LAST) {
-			last_kset_writeback(cache, kset_onmedia);
+			ret = last_kset_writeback(cache, kset_onmedia);
+			if (ret)
+				break;
 			continue;
 		}
 
@@ -340,8 +341,14 @@ void cache_writeback_fn(struct work_struct *work)
 		if (ret)
 			break;
 #endif
+		ret = cache_kset_insert_tree(cache, kset_onmedia);
+		if (ret)
+			break;
 
-		ret = cache_kset_writeback(cache, kset_onmedia);
+		if (++wb_kset_count < CBD_CACHE_WB_KSET_MAX)
+			continue;
+wb_tree_write:
+		ret = cache_wb_tree_writeback(cache);
 		if (ret)
 			break;
 
@@ -353,6 +360,7 @@ void cache_writeback_fn(struct work_struct *work)
 		cache_pos_advance(&cache->dirty_tail, get_kset_onmedia_size(kset_onmedia));
 
 		cache_encode_dirty_tail(cache);
+		wb_kset_count = 0;
 	}
 
 	queue_delayed_work(cache->cache_wq, &cache->writeback_work, CBD_CACHE_WRITEBACK_INTERVAL);
