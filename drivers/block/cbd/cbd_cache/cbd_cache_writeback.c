@@ -173,9 +173,9 @@ static int cache_kset_writeback(struct cbd_cache *cache,
 		key_onmedia = &kset_onmedia->data[i];
 
 		key = &key_tmp;
-		cache_key_init(&cache->req_key_tree, key);
+		cache_key_init(NULL, key);
 
-		cache_key_decode(key_onmedia, key);
+		cache_key_decode(cache, key_onmedia, key);
 		ret = cache_key_writeback(cache, key);
 		if (ret) {
 			cbd_cache_err(cache, "writeback error: %d\n", ret);
@@ -249,10 +249,10 @@ static int kset_data_verify(struct cbd_cache *cache,
 		struct cbd_cache_key_onmedia *key_onmedia;
 
 		key = &key_tmp;
-		cache_key_init(&cache->req_key_tree, key);
+		cache_key_init(NULL, key);
 
 		key_onmedia = &kset_onmedia->data[i];
-		cache_key_decode(key_onmedia, key);
+		cache_key_decode(cache, key_onmedia, key);
 
 		if (key->data_crc != cache_key_data_crc(key)) {
 			cbd_cache_debug(cache, "key: %llu:%u data crc(%x) is not expected(%x), wait for data ready.\n",

@@ -953,7 +953,7 @@ next_tree:
 	if (key->len > CBD_CACHE_TREE_SIZE - (key->off & CBD_CACHE_TREE_SIZE_MASK))
 		key->len = CBD_CACHE_TREE_SIZE - (key->off & CBD_CACHE_TREE_SIZE_MASK);
 
-	cache_tree = get_cache_tree(cache, key->off);
+	cache_tree = get_subtree(cache, key->off);
 	spin_lock(&cache_tree->tree_lock);
 
 search:
@@ -1054,7 +1054,7 @@ static int cache_write(struct cbd_cache *cache, struct cbd_request *cbd_req)
 
 		cache_copy_from_req_bio(cache, key, cbd_req, io_done);
 
-		cache_tree = get_cache_tree(cache, key->off);
+		cache_tree = get_subtree(cache, key->off);
 		spin_lock(&cache_tree->tree_lock);
 		ret = cache_key_insert(cache, key, true);
 		if (ret) {

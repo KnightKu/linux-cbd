@@ -135,7 +135,9 @@ void cache_key_get(struct cbd_cache_key *key);
 void cache_key_put(struct cbd_cache_key *key);
 int cache_key_append(struct cbd_cache *cache, struct cbd_cache_key *key);
 int cache_key_insert(struct cbd_cache *cache, struct cbd_cache_key *key, bool new_key);
-void cache_key_decode(struct cbd_cache_key_onmedia *key_onmedia, struct cbd_cache_key *key);
+void cache_key_decode(struct cbd_cache *cache,
+			struct cbd_cache_key_onmedia *key_onmedia,
+			struct cbd_cache_key *key);
 void cache_pos_advance(struct cbd_cache_pos *pos, u32 len);
 
 /* Cache key set flags */
@@ -242,13 +244,13 @@ void cache_writeback_fn(struct work_struct *work);
 
 /* inline functions */
 /**
- * get_cache_tree - Retrieves the cache tree based on offset.
+ * get_subtree - Retrieves the cache tree based on offset.
  * @cache: Pointer to cbd_cache structure.
  * @off: Offset value to determine cache tree.
  *
  * Returns the cache tree corresponding to the specified offset.
  */
-static inline struct cbd_cache_subtree *get_cache_tree(struct cbd_cache *cache, u64 off)
+static inline struct cbd_cache_subtree *get_subtree(struct cbd_cache *cache, u64 off)
 {
 	return &cache->req_key_tree.subtrees[off >> CBD_CACHE_TREE_SIZE_SHIFT];
 }

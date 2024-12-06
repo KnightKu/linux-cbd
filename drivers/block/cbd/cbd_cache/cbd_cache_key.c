@@ -105,18 +105,10 @@ static void cache_key_encode(struct cbd_cache_key_onmedia *key_onmedia,
 #endif
 }
 
-/**
- * cache_key_decode - Decode a cache key from storage.
- * @key_onmedia: Pointer to the cache key structure to decode from.
- * @key: Pointer to the cache key structure to decode into.
- *
- * This function populates the in-memory representation of a cache key
- * from its on-media representation.
- */
-void cache_key_decode(struct cbd_cache_key_onmedia *key_onmedia, struct cbd_cache_key *key)
+void cache_key_decode(struct cbd_cache *cache,
+			struct cbd_cache_key_onmedia *key_onmedia,
+			struct cbd_cache_key *key)
 {
-	struct cbd_cache *cache = key->cache_tree->cache;
-
 	key->off = key_onmedia->off;
 	key->len = key_onmedia->len;
 
@@ -655,7 +647,7 @@ int cache_key_insert(struct cbd_cache *cache, struct cbd_cache_key *key,
 	LIST_HEAD(delete_key_list);
 	int ret;
 
-	cache_tree = get_cache_tree(cache, key->off);
+	cache_tree = get_subtree(cache, key->off);
 
 	if (new_key)
 		key->cache_subtree = cache_tree;
@@ -791,7 +783,7 @@ static int kset_replay(struct cbd_cache *cache, struct cbd_cache_kset_onmedia *k
 			goto err;
 		}
 
-		cache_key_decode(key_onmedia, key);
+		cache_key_decode(cache, key_onmedia, key);
 #ifdef CONFIG_CBD_CACHE_DATA_CRC
 		/* Validate the key's data CRC against the calculated CRC. */
 		if (key->data_crc != cache_key_data_crc(key)) {
