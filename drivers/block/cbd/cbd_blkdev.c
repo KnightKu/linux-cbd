@@ -459,7 +459,7 @@ static int blkdev_cache_init(struct cbd_blkdev *cbd_blkdev)
 	cache_opts.new_cache = false;
 	cache_opts.start_writeback = false;
 	cache_opts.start_gc = true;
-	cache_opts.init_keys = true;
+	cache_opts.init_req_keys = true;
 	cache_opts.dev_size = cbd_blkdev->dev_size;
 	cache_opts.n_paral = cbd_blkdev->num_queues;
 

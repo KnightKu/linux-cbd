@@ -419,7 +419,7 @@ static int backend_cache_init(struct cbd_backend *cbdb, u32 cache_segs, bool new
 	cache_opts.new_cache = new_backend;
 	cache_opts.start_writeback = true;
 	cache_opts.start_gc = false;
-	cache_opts.init_keys = false;
+	cache_opts.init_req_keys = false;
 	cache_opts.bdev_file = cbdb->bdev_file;
 	cache_opts.dev_size = cbdb->backend_info.dev_size;
 

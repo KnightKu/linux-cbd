@@ -130,7 +130,7 @@ struct cbd_cache {
 	struct kmem_cache	*req_cache;
 
 	u32			state:8;
-	u32			init_keys:1;
+	u32			init_req_keys:1;
 	u32			start_writeback:1;
 	u32			start_gc:1;
 
@@ -150,7 +150,7 @@ struct cbd_cache_opts {
 	bool new_cache;
 	bool start_writeback;
 	bool start_gc;
-	bool init_keys;
+	bool init_req_keys;
 	u64 dev_size;
 	u32 n_paral;
 	struct file *bdev_file;

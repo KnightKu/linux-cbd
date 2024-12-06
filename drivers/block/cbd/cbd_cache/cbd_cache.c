@@ -201,7 +201,7 @@ static void cache_free(struct cbd_cache *cache)
 }
 
 /*
- * cache_init_keys - Initialize cache key-related data structures
+ * cache_init_req_keys - Initialize cache key-related data structures
  * @cache: Pointer to the cache structure
  * @n_paral: Number of parallel instances, usually matching the number of blkdev queues
  *
@@ -211,7 +211,7 @@ static void cache_free(struct cbd_cache *cache)
  *
  * Returns 0 on success, or a negative error code if initialization fails.
  */
-static int cache_init_keys(struct cbd_cache *cache, u32 n_paral)
+static int cache_init_req_keys(struct cbd_cache *cache, u32 n_paral)
 {
 	int ret;
 	u32 i;
@@ -300,7 +300,7 @@ err:
  * cache_destroy_keys - Clean up and free resources associated with cache keys
  * @cache: Pointer to the cache structure
  *
- * This function releases all resources allocated by cache_init_keys, including
+ * This function releases all resources allocated by cache_init_req_keys, including
  * cache trees, ksets, and data heads. It also cancels any delayed flush work
  * scheduled for each kset.
  */
@@ -479,8 +479,8 @@ struct cbd_cache *cbd_cache_alloc(struct cbd_transport *cbdt,
 	if (ret)
 		goto segs_destroy;
 
-	if (opts->init_keys) {
-		ret = cache_init_keys(cache, opts->n_paral);
+	if (opts->init_req_keys) {
+		ret = cache_init_req_keys(cache, opts->n_paral);
 		if (ret)
 			goto segs_destroy;
 	}
