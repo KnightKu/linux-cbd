@@ -913,6 +913,24 @@ int cache_tree_init(struct cbd_cache *cache, struct cbd_cache_tree *cache_tree, 
 
 void cache_tree_exit(struct cbd_cache_tree *cache_tree)
 {
+	struct cbd_cache_subtree *cache_subtree;
+	struct rb_node *node;
+	struct cbd_cache_key *key;
+	u32 i;
+
+	for (i = 0; i < cache_tree->n_subtrees; i++) {
+		cache_subtree = &cache_tree->subtrees[i];
+
+		spin_lock(&cache_subtree->tree_lock);
+		node = rb_first(&cache_subtree->root);
+		while (node) {
+			key = CACHE_KEY(node);
+			node = rb_next(node);
+
+			cache_key_delete(key);
+		}
+		spin_unlock(&cache_subtree->tree_lock);
+	}
 	kvfree(cache_tree->subtrees);
 }
 

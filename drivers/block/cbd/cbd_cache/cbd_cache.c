@@ -292,22 +292,6 @@ static void cache_destroy_req_keys(struct cbd_cache *cache)
 {
 	u32 i;
 
-	for (i = 0; i < cache->req_key_tree.n_subtrees; i++) {
-		struct cbd_cache_subtree *cache_subtree = &cache->req_key_tree.subtrees[i];
-		struct rb_node *node;
-		struct cbd_cache_key *key;
-
-		spin_lock(&cache_subtree->tree_lock);
-		node = rb_first(&cache_subtree->root);
-		while (node) {
-			key = CACHE_KEY(node);
-			node = rb_next(node);
-
-			cache_key_delete(key);
-		}
-		spin_unlock(&cache_subtree->tree_lock);
-	}
-
 	for (i = 0; i < cache->n_ksets; i++) {
 		struct cbd_cache_kset *kset = get_kset(cache, i);
 
