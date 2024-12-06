@@ -126,6 +126,7 @@ struct cbd_cache {
 	struct delayed_work	writeback_work;
 	struct delayed_work	gc_work;
 	struct bio_set		*bioset;
+	struct cbd_cache_tree	writeback_key_tree;
 
 	struct kmem_cache	*req_cache;
 

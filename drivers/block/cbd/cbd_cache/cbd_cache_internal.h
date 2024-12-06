@@ -216,6 +216,8 @@ int cache_kset_close(struct cbd_cache *cache, struct cbd_cache_kset *kset);
 void clean_fn(struct work_struct *work);
 void kset_flush_fn(struct work_struct *work);
 int cache_replay(struct cbd_cache *cache);
+int cache_tree_init(struct cbd_cache *cache, struct cbd_cache_tree *cache_tree, u32 n_subtrees);
+void cache_tree_exit(struct cbd_cache_tree *cache_tree);
 
 /* cache segments */
 struct cbd_cache_segment *get_cache_segment(struct cbd_cache *cache);

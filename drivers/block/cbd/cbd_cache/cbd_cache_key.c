@@ -885,3 +885,34 @@ int cache_replay(struct cbd_cache *cache)
 out:
 	return ret;
 }
+
+int cache_tree_init(struct cbd_cache *cache, struct cbd_cache_tree *cache_tree, u32 n_subtrees)
+{
+	u32 i;
+
+	cache_tree->cache = cache;
+	cache_tree->n_subtrees = n_subtrees;
+	/*
+	 * Allocate and initialize the subtrees array.
+	 * Each element is a cache tree structure that contains
+	 * an RB tree root and a spinlock for protecting its contents.
+	 */
+	cache_tree->subtrees = kvcalloc(cache_tree->n_subtrees, sizeof(struct cbd_cache_subtree), GFP_KERNEL);
+	if (!cache_tree->n_subtrees)
+		return -ENOMEM;
+
+	for (i = 0; i < cache_tree->n_subtrees; i++) {
+		struct cbd_cache_subtree *cache_subtree = &cache_tree->subtrees[i];
+
+		cache_subtree->root = RB_ROOT;
+		spin_lock_init(&cache_subtree->tree_lock);
+	}
+
+	return 0;
+}
+
+void cache_tree_exit(struct cbd_cache_tree *cache_tree)
+{
+	kvfree(cache_tree->subtrees);
+}
+
