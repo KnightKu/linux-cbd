@@ -208,8 +208,8 @@ struct cbd_cache_subtree_walk_ctx {
 	bool (*walk_done)(struct cbd_cache_subtree_walk_ctx *ctx);
 };
 
-int cache_tree_walk(struct cbd_cache_subtree_walk_ctx *ctx);
-struct rb_node *cache_tree_search(struct cbd_cache_subtree *cache_tree, struct cbd_cache_key *key,
+int cache_subtree_walk(struct cbd_cache_subtree_walk_ctx *ctx);
+struct rb_node *cache_subtree_search(struct cbd_cache_subtree *cache_subtree, struct cbd_cache_key *key,
 				  struct rb_node **parentp, struct rb_node ***newp,
 				  struct list_head *delete_key_list);
 int cache_kset_close(struct cbd_cache *cache, struct cbd_cache_kset *kset);
@@ -395,13 +395,13 @@ static inline void cache_key_cutback(struct cbd_cache_key *key, u32 cut_len)
  */
 static inline void cache_key_delete(struct cbd_cache_key *key)
 {
-	struct cbd_cache_subtree *cache_tree;
+	struct cbd_cache_subtree *cache_subtree;
 
-	cache_tree = key->cache_subtree;
-	if (!cache_tree)
+	cache_subtree = key->cache_subtree;
+	if (!cache_subtree)
 		return;
 
-	rb_erase(&key->rb_node, &cache_tree->root);
+	rb_erase(&key->rb_node, &cache_subtree->root);
 	key->flags = 0;
 	cache_key_put(key);
 }

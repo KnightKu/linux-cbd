@@ -233,10 +233,10 @@ static int cache_init_keys(struct cbd_cache *cache, u32 n_paral)
 	}
 
 	for (i = 0; i < cache->req_key_tree.n_subtrees; i++) {
-		struct cbd_cache_subtree *cache_tree = &cache->req_key_tree.subtrees[i];
+		struct cbd_cache_subtree *cache_subtree = &cache->req_key_tree.subtrees[i];
 
-		cache_tree->root = RB_ROOT;
-		spin_lock_init(&cache_tree->tree_lock);
+		cache_subtree->root = RB_ROOT;
+		spin_lock_init(&cache_subtree->tree_lock);
 	}
 
 	/* Set the number of ksets based on n_paral, often corresponding to blkdev multiqueue count */
@@ -309,19 +309,19 @@ static void cache_destroy_keys(struct cbd_cache *cache)
 	u32 i;
 
 	for (i = 0; i < cache->req_key_tree.n_subtrees; i++) {
-		struct cbd_cache_subtree *cache_tree = &cache->req_key_tree.subtrees[i];
+		struct cbd_cache_subtree *cache_subtree = &cache->req_key_tree.subtrees[i];
 		struct rb_node *node;
 		struct cbd_cache_key *key;
 
-		spin_lock(&cache_tree->tree_lock);
-		node = rb_first(&cache_tree->root);
+		spin_lock(&cache_subtree->tree_lock);
+		node = rb_first(&cache_subtree->root);
 		while (node) {
 			key = CACHE_KEY(node);
 			node = rb_next(node);
 
 			cache_key_delete(key);
 		}
-		spin_unlock(&cache_tree->tree_lock);
+		spin_unlock(&cache_subtree->tree_lock);
 	}
 
 	for (i = 0; i < cache->n_ksets; i++) {

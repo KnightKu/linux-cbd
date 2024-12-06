@@ -210,15 +210,15 @@ static void miss_read_end_req(struct cbd_cache *cache, struct cbd_request *cbd_r
 
 	if (priv_data) {
 		struct cbd_cache_key *key;
-		struct cbd_cache_subtree *cache_tree;
+		struct cbd_cache_subtree *cache_subtree;
 
 		key = (struct cbd_cache_key *)priv_data;
-		cache_tree = key->cache_subtree;
+		cache_subtree = key->cache_subtree;
 
-		/* if this key was deleted from cache_tree by a write, key->flags should be cleared,
-		 * so if cache_key_empty() return true, this key is still in cache_tree
+		/* if this key was deleted from cache_subtree by a write, key->flags should be cleared,
+		 * so if cache_key_empty() return true, this key is still in cache_subtree
 		 */
-		spin_lock(&cache_tree->tree_lock);
+		spin_lock(&cache_subtree->tree_lock);
 		if (cache_key_empty(key)) {
 			/* Check if the backing request was successful. */
 			if (cbd_req->ret) {
@@ -246,7 +246,7 @@ static void miss_read_end_req(struct cbd_cache *cache, struct cbd_request *cbd_r
 			}
 		}
 unlock:
-		spin_unlock(&cache_tree->tree_lock);
+		spin_unlock(&cache_subtree->tree_lock);
 		cache_key_put(key);
 	}
 
@@ -319,7 +319,7 @@ static void cache_backing_req_end_req(struct cbd_request *cbd_req, void *priv_da
  * @cbd_req: The cache request containing information about the read request
  *
  * This function is used to handle cases where a cache read request cannot locate
- * the required data in the cache. When such a miss occurs during `cache_tree_walk`,
+ * the required data in the cache. When such a miss occurs during `cache_subtree_walk`,
  * it triggers a backend read request to fetch data from the storage backend.
  *
  * If `cbd_req->priv_data` is set, it points to a `cbd_cache_key`, representing
@@ -473,7 +473,7 @@ static int send_backing_req(struct cbd_cache *cache, struct cbd_request *cbd_req
 }
 
 /*
- * read_before - Handle a cache miss scenario during cache_tree_walk
+ * read_before - Handle a cache miss scenario during cache_subtree_walk
  *			   when the requested key precedes the current key_tmp
  * @key:	   The cache key representing the range of requested data
  *			 that was not found in the cache
@@ -544,7 +544,7 @@ out:
  * @ctx:	   The context structure storing information about the cache
  *			 and the original read request
  *
- * During cache_tree_walk, this function manages a scenario where part of the
+ * During cache_subtree_walk, this function manages a scenario where part of the
  * requested data range overlaps with an existing cache node (`key_tmp`).
  * The function handles two portions:
  * 1. The leading non-overlapping part of `key` that comes before `key_tmp`.
@@ -708,7 +708,7 @@ out:
  * @ctx:	   The context structure holding information about the cache
  *			 and the original read request
  *
- * During cache_tree_walk, this function handles a scenario where the
+ * During cache_subtree_walk, this function handles a scenario where the
  * entire requested data range (`key`) lies within an existing cache node (`key_tmp`).
  * It evaluates if `key_tmp` contains cached data, allowing retrieval from
  * the cache, or if it is an empty placeholder, requiring a backend request.
@@ -768,7 +768,7 @@ out:
  *			 with overlapping data at its end
  * @ctx:	   Context structure holding cache and read request information
  *
- * During the cache_tree_walk for a read request, this function deals with
+ * During the cache_subtree_walk for a read request, this function deals with
  * situations where the beginning of the requested data range (`key`) overlaps
  * with the end of an existing cache node (`key_tmp`).
  *
@@ -825,7 +825,7 @@ out:
  * @ctx:	   Context structure holding information about the cache,
  *			 read request, and submission list
  *
- * This function is called at the end of the `cache_tree_walk` during a
+ * This function is called at the end of the `cache_subtree_walk` during a
  * cache read operation. It completes the walk by checking if any data
  * requested by `key` was not found in the cache tree, and if so, it sends
  * a backend request to retrieve that data. Then, it iterates through the
@@ -875,7 +875,7 @@ out:
  * @ctx:	   Context structure holding information about the cache and the
  *			 read request being processed
  *
- * This function is used within `cache_tree_walk` to determine whether the
+ * This function is used within `cache_subtree_walk` to determine whether the
  * read operation has covered the requested data length. It compares the
  * amount of data processed (`ctx->req_done`) with the total data length
  * specified in the original request (`ctx->cbd_req->data_len`).
@@ -925,7 +925,7 @@ static bool read_walk_done(struct cbd_cache_subtree_walk_ctx *ctx)
 static int cache_read(struct cbd_cache *cache, struct cbd_request *cbd_req)
 {
 	struct cbd_cache_key key_data = { .off = cbd_req->off, .len = cbd_req->data_len };
-	struct cbd_cache_subtree *cache_tree;
+	struct cbd_cache_subtree *cache_subtree;
 	struct cbd_cache_key *key_tmp = NULL, *key_next;
 	struct rb_node *prev_node = NULL;
 	struct cbd_cache_key *key = &key_data;
@@ -953,11 +953,11 @@ next_tree:
 	if (key->len > CBD_CACHE_TREE_SIZE - (key->off & CBD_CACHE_TREE_SIZE_MASK))
 		key->len = CBD_CACHE_TREE_SIZE - (key->off & CBD_CACHE_TREE_SIZE_MASK);
 
-	cache_tree = get_subtree(cache, key->off);
-	spin_lock(&cache_tree->tree_lock);
+	cache_subtree = get_subtree(cache, key->off);
+	spin_lock(&cache_subtree->tree_lock);
 
 search:
-	prev_node = cache_tree_search(cache_tree, key, NULL, NULL, &delete_key_list);
+	prev_node = cache_subtree_search(cache_subtree, key, NULL, NULL, &delete_key_list);
 
 cleanup_tree:
 	if (!list_empty(&delete_key_list)) {
@@ -971,20 +971,20 @@ cleanup_tree:
 	walk_ctx.start_node = prev_node;
 	walk_ctx.key = key;
 
-	ret = cache_tree_walk(&walk_ctx);
+	ret = cache_subtree_walk(&walk_ctx);
 	if (ret == -EINVAL)
 		goto cleanup_tree;
 	else if (ret)
 		goto out;
 
-	spin_unlock(&cache_tree->tree_lock);
+	spin_unlock(&cache_subtree->tree_lock);
 
 	if (walk_ctx.req_done < cbd_req->data_len)
 		goto next_tree;
 
 	return 0;
 out:
-	spin_unlock(&cache_tree->tree_lock);
+	spin_unlock(&cache_subtree->tree_lock);
 
 	return ret;
 }
@@ -1018,7 +1018,7 @@ out:
  */
 static int cache_write(struct cbd_cache *cache, struct cbd_request *cbd_req)
 {
-	struct cbd_cache_subtree *cache_tree;
+	struct cbd_cache_subtree *cache_subtree;
 	struct cbd_cache_key *key;
 	u64 offset = cbd_req->off;
 	u32 length = cbd_req->data_len;
@@ -1054,8 +1054,8 @@ static int cache_write(struct cbd_cache *cache, struct cbd_request *cbd_req)
 
 		cache_copy_from_req_bio(cache, key, cbd_req, io_done);
 
-		cache_tree = get_subtree(cache, key->off);
-		spin_lock(&cache_tree->tree_lock);
+		cache_subtree = get_subtree(cache, key->off);
+		spin_lock(&cache_subtree->tree_lock);
 		ret = cache_key_insert(cache, key, true);
 		if (ret) {
 			cache_seg_put(key->cache_pos.cache_seg);
@@ -1071,12 +1071,12 @@ static int cache_write(struct cbd_cache *cache, struct cbd_request *cbd_req)
 		}
 
 		io_done += key->len;
-		spin_unlock(&cache_tree->tree_lock);
+		spin_unlock(&cache_subtree->tree_lock);
 	}
 
 	return 0;
 unlock:
-	spin_unlock(&cache_tree->tree_lock);
+	spin_unlock(&cache_subtree->tree_lock);
 err:
 	return ret;
 }

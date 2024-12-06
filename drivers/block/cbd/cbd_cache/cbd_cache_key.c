@@ -253,7 +253,7 @@ out:
 }
 
 /**
- * cache_tree_walk - Traverse the cache tree.
+ * cache_subtree_walk - Traverse the cache tree.
  * @cache: Pointer to the cbd_cache structure.
  * @ctx: Pointer to the context structure for traversal.
  *
@@ -263,7 +263,7 @@ out:
  *
  * Returns 0 on success, or a negative error code on failure.
  */
-int cache_tree_walk(struct cbd_cache_subtree_walk_ctx *ctx)
+int cache_subtree_walk(struct cbd_cache_subtree_walk_ctx *ctx)
 {
 	struct cbd_cache_key *key_tmp, *key;
 	struct rb_node *node_tmp;
@@ -375,8 +375,8 @@ out:
 }
 
 /**
- * cache_tree_search - Search for a key in the cache tree.
- * @cache_tree: Pointer to the cache tree structure.
+ * cache_subtree_search - Search for a key in the cache tree.
+ * @cache_subtree: Pointer to the cache tree structure.
  * @key: Pointer to the cache key to search for.
  * @parentp: Pointer to store the parent node of the found node.
  * @newp: Pointer to store the location where the new node should be inserted.
@@ -389,7 +389,7 @@ out:
  *
  * Returns a pointer to the previous node.
  */
-struct rb_node *cache_tree_search(struct cbd_cache_subtree *cache_tree, struct cbd_cache_key *key,
+struct rb_node *cache_subtree_search(struct cbd_cache_subtree *cache_subtree, struct cbd_cache_key *key,
 				  struct rb_node **parentp, struct rb_node ***newp,
 				  struct list_head *delete_key_list)
 {
@@ -397,7 +397,7 @@ struct rb_node *cache_tree_search(struct cbd_cache_subtree *cache_tree, struct c
 	struct cbd_cache_key *key_tmp;
 	struct rb_node *prev_node = NULL;
 
-	new = &(cache_tree->root.rb_node);
+	new = &(cache_subtree->root.rb_node);
 	while (*new) {
 		key_tmp = container_of(*new, struct cbd_cache_key, rb_node);
 		if (cache_key_invalid(key_tmp))
@@ -413,7 +413,7 @@ struct rb_node *cache_tree_search(struct cbd_cache_subtree *cache_tree, struct c
 	}
 
 	if (!prev_node)
-		prev_node = rb_first(&cache_tree->root);
+		prev_node = rb_first(&cache_subtree->root);
 
 	if (parentp)
 		*parentp = parent;
@@ -601,7 +601,7 @@ static int fixup_overlap_head(struct cbd_cache_key *key,
  * @prev_node: The last visited node during the search.
  *
  * This function initializes a walking context and calls the
- * cache_tree_walk function to handle potential overlaps between
+ * cache_subtree_walk function to handle potential overlaps between
  * the new key and existing keys in the cache tree. Various
  * fixup functions are provided to manage different overlap scenarios.
  */
@@ -622,7 +622,7 @@ static int cache_insert_fixup(struct cbd_cache *cache,
 	walk_ctx.overlap_contained = fixup_overlap_contained;
 
 	/* Begin walking the cache tree to fix overlaps */
-	return cache_tree_walk(&walk_ctx);
+	return cache_subtree_walk(&walk_ctx);
 }
 
 /**
@@ -641,16 +641,16 @@ int cache_key_insert(struct cbd_cache *cache, struct cbd_cache_key *key,
 	bool fixup)
 {
 	struct rb_node **new, *parent = NULL;
-	struct cbd_cache_subtree *cache_tree;
+	struct cbd_cache_subtree *cache_subtree;
 	struct cbd_cache_key *key_tmp = NULL, *key_next;
 	struct rb_node *prev_node = NULL;
 	LIST_HEAD(delete_key_list);
 	int ret;
 
-	cache_tree = get_subtree(cache, key->off);
-	key->cache_subtree = cache_tree;
+	cache_subtree = get_subtree(cache, key->off);
+	key->cache_subtree = cache_subtree;
 search:
-	prev_node = cache_tree_search(cache_tree, key, &parent, &new, &delete_key_list);
+	prev_node = cache_subtree_search(cache_subtree, key, &parent, &new, &delete_key_list);
 	if (!list_empty(&delete_key_list)) {
 		/* Remove invalid keys from the delete list */
 		list_for_each_entry_safe(key_tmp, key_next, &delete_key_list, list_node) {
@@ -670,7 +670,7 @@ search:
 
 	/* Link and insert the new key into the red-black tree */
 	rb_link_node(&key->rb_node, parent, new);
-	rb_insert_color(&key->rb_node, &cache_tree->root);
+	rb_insert_color(&key->rb_node, &cache_subtree->root);
 
 	return 0;
 out:
@@ -689,13 +689,13 @@ out:
 void clean_fn(struct work_struct *work)
 {
 	struct cbd_cache *cache = container_of(work, struct cbd_cache, clean_work);
-	struct cbd_cache_subtree *cache_tree;
+	struct cbd_cache_subtree *cache_subtree;
 	struct rb_node *node;
 	struct cbd_cache_key *key;
 	int i, count;
 
 	for (i = 0; i < cache->req_key_tree.n_subtrees; i++) {
-		cache_tree = &cache->req_key_tree.subtrees[i];
+		cache_subtree = &cache->req_key_tree.subtrees[i];
 
 again:
 		if (cache->state == CBD_CACHE_STATE_STOPPING)
@@ -703,8 +703,8 @@ again:
 
 		/* Delete up to CBD_CLEAN_KEYS_MAX keys in one iteration */
 		count = 0;
-		spin_lock(&cache_tree->tree_lock);
-		node = rb_first(&cache_tree->root);
+		spin_lock(&cache_subtree->tree_lock);
+		node = rb_first(&cache_subtree->root);
 		while (node) {
 			key = CACHE_KEY(node);
 			node = rb_next(node);
@@ -715,12 +715,12 @@ again:
 
 			if (count >= CBD_CLEAN_KEYS_MAX) {
 				/* Unlock and pause before continuing cleanup */
-				spin_unlock(&cache_tree->tree_lock);
+				spin_unlock(&cache_subtree->tree_lock);
 				usleep_range(1000, 2000);
 				goto again;
 			}
 		}
-		spin_unlock(&cache_tree->tree_lock);
+		spin_unlock(&cache_subtree->tree_lock);
 	}
 }
 
