@@ -134,7 +134,7 @@ void cache_key_init(struct cbd_cache_tree *cache_tree, struct cbd_cache_key *key
 void cache_key_get(struct cbd_cache_key *key);
 void cache_key_put(struct cbd_cache_key *key);
 int cache_key_append(struct cbd_cache *cache, struct cbd_cache_key *key);
-int cache_key_insert(struct cbd_cache *cache, struct cbd_cache_key *key, bool new_key);
+int cache_key_insert(struct cbd_cache *cache, struct cbd_cache_key *key, bool fixup);
 void cache_key_decode(struct cbd_cache *cache,
 			struct cbd_cache_key_onmedia *key_onmedia,
 			struct cbd_cache_key *key);

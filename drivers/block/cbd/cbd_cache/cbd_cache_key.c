@@ -629,7 +629,7 @@ static int cache_insert_fixup(struct cbd_cache *cache,
  * cache_key_insert - Insert a new cache key into the cache tree.
  * @cache: Pointer to the cache structure.
  * @key: The cache key to insert.
- * @new_key: Indicates if this is a new key being inserted.
+ * @fixup: Indicates if this is a new key being inserted.
  *
  * This function searches for the appropriate location to insert
  * a new cache key into the cache tree. It handles key overlaps
@@ -638,7 +638,7 @@ static int cache_insert_fixup(struct cbd_cache *cache,
  * Returns 0 on success or a negative error code on failure.
  */
 int cache_key_insert(struct cbd_cache *cache, struct cbd_cache_key *key,
-	bool new_key)
+	bool fixup)
 {
 	struct rb_node **new, *parent = NULL;
 	struct cbd_cache_subtree *cache_tree;
@@ -648,13 +648,9 @@ int cache_key_insert(struct cbd_cache *cache, struct cbd_cache_key *key,
 	int ret;
 
 	cache_tree = get_subtree(cache, key->off);
-
-	if (new_key)
-		key->cache_subtree = cache_tree;
-
+	key->cache_subtree = cache_tree;
 search:
 	prev_node = cache_tree_search(cache_tree, key, &parent, &new, &delete_key_list);
-
 	if (!list_empty(&delete_key_list)) {
 		/* Remove invalid keys from the delete list */
 		list_for_each_entry_safe(key_tmp, key_next, &delete_key_list, list_node) {
@@ -664,7 +660,7 @@ search:
 		goto search;
 	}
 
-	if (new_key) {
+	if (fixup) {
 		ret = cache_insert_fixup(cache, key, prev_node);
 		if (ret == -EAGAIN)
 			goto search;
