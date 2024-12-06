@@ -200,6 +200,36 @@ static void cache_free(struct cbd_cache *cache)
 	kvfree(cache);
 }
 
+static int cache_tree_init(struct cbd_cache *cache, struct cbd_cache_tree *cache_tree, u32 n_subtrees)
+{
+	u32 i;
+
+	cache_tree->cache = cache;
+	cache_tree->n_subtrees = n_subtrees;
+	/*
+	 * Allocate and initialize the subtrees array.
+	 * Each element is a cache tree structure that contains
+	 * an RB tree root and a spinlock for protecting its contents.
+	 */
+	cache_tree->subtrees = kvcalloc(cache_tree->n_subtrees, sizeof(struct cbd_cache_subtree), GFP_KERNEL);
+	if (!cache_tree->n_subtrees)
+		return -ENOMEM;
+
+	for (i = 0; i < cache_tree->n_subtrees; i++) {
+		struct cbd_cache_subtree *cache_subtree = &cache_tree->subtrees[i];
+
+		cache_subtree->root = RB_ROOT;
+		spin_lock_init(&cache_subtree->tree_lock);
+	}
+
+	return 0;
+}
+
+static void cache_tree_exit(struct cbd_cache_tree *cache_tree)
+{
+	kvfree(cache_tree->subtrees);
+}
+
 /*
  * cache_init_req_keys - Initialize cache key-related data structures
  * @cache: Pointer to the cache structure
@@ -213,38 +243,22 @@ static void cache_free(struct cbd_cache *cache)
  */
 static int cache_init_req_keys(struct cbd_cache *cache, u32 n_paral)
 {
+	u32 n_subtrees;
 	int ret;
 	u32 i;
 
-	cache->req_key_tree.cache = cache;
-
 	/* Calculate number of cache trees based on the device size */
-	cache->req_key_tree.n_subtrees = DIV_ROUND_UP(cache->dev_size << SECTOR_SHIFT, CBD_CACHE_TREE_SIZE);
-
-	/*
-	 * Allocate and initialize the subtrees array.
-	 * Each element is a cache tree structure that contains
-	 * an RB tree root and a spinlock for protecting its contents.
-	 */
-	cache->req_key_tree.subtrees = kvcalloc(cache->req_key_tree.n_subtrees, sizeof(struct cbd_cache_subtree), GFP_KERNEL);
-	if (!cache->req_key_tree.subtrees) {
-		ret = -ENOMEM;
+	n_subtrees = DIV_ROUND_UP(cache->dev_size << SECTOR_SHIFT, CBD_CACHE_TREE_SIZE);
+	ret = cache_tree_init(cache, &cache->req_key_tree, n_subtrees);
+	if (ret)
 		goto err;
-	}
-
-	for (i = 0; i < cache->req_key_tree.n_subtrees; i++) {
-		struct cbd_cache_subtree *cache_subtree = &cache->req_key_tree.subtrees[i];
-
-		cache_subtree->root = RB_ROOT;
-		spin_lock_init(&cache_subtree->tree_lock);
-	}
 
 	/* Set the number of ksets based on n_paral, often corresponding to blkdev multiqueue count */
 	cache->n_ksets = n_paral;
 	cache->ksets = kcalloc(cache->n_ksets, CBD_KSET_SIZE, GFP_KERNEL);
 	if (!cache->ksets) {
 		ret = -ENOMEM;
-		goto free_trees;
+		goto req_tree_exit;
 	}
 
 	/*
@@ -290,21 +304,21 @@ free_heads:
 	kfree(cache->data_heads);
 free_kset:
 	kfree(cache->ksets);
-free_trees:
-	kvfree(cache->req_key_tree.subtrees);
+req_tree_exit:
+	cache_tree_exit(&cache->req_key_tree);
 err:
 	return ret;
 }
 
 /*
- * cache_destroy_keys - Clean up and free resources associated with cache keys
+ * cache_destroy_req_keys - Clean up and free resources associated with cache keys
  * @cache: Pointer to the cache structure
  *
  * This function releases all resources allocated by cache_init_req_keys, including
  * cache trees, ksets, and data heads. It also cancels any delayed flush work
  * scheduled for each kset.
  */
-static void cache_destroy_keys(struct cbd_cache *cache)
+static void cache_destroy_req_keys(struct cbd_cache *cache)
 {
 	u32 i;
 
@@ -332,7 +346,7 @@ static void cache_destroy_keys(struct cbd_cache *cache)
 
 	kfree(cache->data_heads);
 	kfree(cache->ksets);
-	kvfree(cache->req_key_tree.subtrees);
+	cache_tree_exit(&cache->req_key_tree);
 }
 
 static int __cache_info_load(struct cbd_transport *cbdt,
@@ -500,7 +514,7 @@ struct cbd_cache *cbd_cache_alloc(struct cbd_transport *cbdt,
 	return cache;
 
 destroy_keys:
-	cache_destroy_keys(cache);
+	cache_destroy_req_keys(cache);
 segs_destroy:
 	cache_segs_destroy(cache);
 free_cache:
@@ -533,7 +547,7 @@ void cbd_cache_destroy(struct cbd_cache *cache)
 		cache_writeback_exit(cache);
 
 	if (cache->req_key_tree.n_subtrees)
-		cache_destroy_keys(cache);
+		cache_destroy_req_keys(cache);
 
 	flush_work(&cache->used_segs_update_work);
 
