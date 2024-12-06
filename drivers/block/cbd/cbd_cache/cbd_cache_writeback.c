@@ -300,7 +300,7 @@ static int kset_data_verify(struct cbd_cache *cache,
 
 #endif
 
-#define CBD_CACHE_WB_KSET_MAX		256
+#define CBD_CACHE_WB_KSET_MAX		16
 /**
  * cache_writeback_fn - Main function for handling writeback work in the cache.
  * @work: Pointer to the work_struct, which contains the context for the work item.
@@ -333,6 +333,7 @@ void cache_writeback_fn(struct work_struct *work)
 			ret = last_kset_writeback(cache, kset_onmedia);
 			if (ret)
 				break;
+			wb_kset_count = 0;
 			continue;
 		}
 
@@ -345,7 +346,8 @@ void cache_writeback_fn(struct work_struct *work)
 		if (ret)
 			break;
 
-		if (++wb_kset_count < CBD_CACHE_WB_KSET_MAX)
+		if (cache->state != CBD_CACHE_STATE_STOPPING &&
+				++wb_kset_count < CBD_CACHE_WB_KSET_MAX)
 			continue;
 wb_tree_write:
 		ret = cache_wb_tree_writeback(cache);
